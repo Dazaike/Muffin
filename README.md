@@ -1,51 +1,65 @@
 # Muffin
 
-A fast Roblox desktop launcher for Windows. Tauri 2 (Rust) + React 19 + TypeScript + Tailwind 4.
+A fast, good-looking Roblox launcher for Windows. Find games, keep your favorites, and hit Play.
 
-Browse and search real Roblox experiences, keep a library and favorites, save private-server share links, and launch games through the registered `roblox://` handler (Roblox Player, Bloxstrap, Fishstrap, …). Guest mode is fully functional; Roblox sign-in is optional.
+Muffin doesn't replace Roblox. It's a nicer front door: you browse and search in Muffin, and when you press **Play**, Roblox opens the game just like it would from the website.
 
-## Prerequisites
-- Node 20+
-- Rust stable (MSVC toolchain)
-- Visual Studio Build Tools with "Desktop development with C++"
-- WebView2 runtime (ships with Windows 11)
+## What you can do
 
-## Develop / build
+- **Find games.** Browse Home and Discover, or search by name. Every game has a full page with players, likes, the creator, servers, badges and passes.
+- **Play with one click.** Press Play on any game. Muffin works with Roblox itself, Bloxstrap and Fishstrap.
+- **Keep your games organized.** Favorite games, build a library, drag them into your own order, and jump back into recent ones from Continue Playing.
+- **Join private servers.** Save a private server link for a game and launch straight into it.
+- **See your friends.** Sign in to see who's online, send and answer friend requests, and join them.
+- **Check your Robux.** Your balance shows in the top bar, with your recent transactions in Wallet.
+- **Make it yours.** Pick any accent color, switch card layouts, and set your own background picture.
+- **Stay out of the way.** Minimize to the tray, start with Windows, or let Muffin close itself once Roblox opens.
+- **Move to a new PC.** Export your library and settings to a file and import them anywhere.
+
+## Getting started
+
+1. Download **Muffin_0.1.0_x64-setup.exe** from the [Releases](../../releases) page and run it. It installs just for you, so no admin rights are needed.
+2. Open Muffin. The first-run screen checks that Roblox is installed and offers to sign you in.
+3. Search for a game and press **Play**.
+
+You need Roblox (or Bloxstrap or Fishstrap) installed. If Muffin can't find it, **Settings → Roblox** tells you what's wrong.
+
+## Do I need to sign in?
+
+No. Browsing, searching, favorites, your library and launching all work without an account.
+
+Signing in adds the account-based parts: your Robux, friends, your own games, and search results that match your account (including age-restricted games). It works like logging in on the Roblox website. Muffin keeps your login safe in Windows Credential Manager and never shows it to you or sends it anywhere except Roblox. You can add more than one account and remove one any time from Settings → Account.
+
+## Good to know
+
+- **Muffin hands the game to Roblox.** Once you press Play, Roblox takes over, and Muffin can't tell whether the game actually started.
+- **Roblox uses its own login.** The game opens as whichever account Roblox itself is signed into, which may not be the account you're using in Muffin.
+- **Playtime is an estimate.** It only counts games you started from Muffin.
+- **Some features are untested.** Friends, private-server buying and management, voting and transactions depend on parts of Roblox that can change, and haven't been checked against a live account. If Roblox says no, Muffin shows the error instead of making something up.
+- **Not included on purpose:** avatar editor, marketplace, inventory and trading, and Roblox account or security settings.
+
+## Your data
+
+Everything stays on your PC: your library, history, settings and saved private servers live in `%APPDATA%/app.muffin.launcher`. Your Roblox login is stored in Windows Credential Manager, not in that folder. Exports never include your login.
+
+**Settings → Privacy & Data** can clear your cache, play history and recent searches.
+
+## For developers
+
+You'll need Node 20+, Rust (MSVC toolchain), Visual Studio Build Tools with "Desktop development with C++", and WebView2.
+
 ```powershell
 npm install
-npm run tauri dev
-npm run tauri build   # -> src-tauri/target/release/bundle/nsis/Muffin_<ver>_x64-setup.exe
-npm test              # frontend unit tests
+npm run tauri dev      # run the app
+npm run tauri build    # build the installer
+npm test               # frontend tests
 cd src-tauri; cargo test
 ```
 
-## Roblox sign-in (optional)
-
-Choose **Sign in to Roblox** in the account menu, Profile, Settings → Account or first-run setup. It opens Roblox's own login page in an isolated WebView2 window; complete any security challenges with Roblox. Muffin stores the resulting session cookie in Windows Credential Manager (`app.muffin.launcher` / `roblox-web-session:<userId>`), and uses it to request your Robux balance, friends, created games and favorited games. This cookie grants account access; never share it. Removing an account deletes Muffin's saved session but does not revoke the session at Roblox.
-
-There is no OAuth sign-in and no client ID or app registration to configure. Muffin works fully as a guest without signing in.
-
-Roblox may reject embedded login or use of the session outside the webview. Its legacy account APIs may change or restrict access; errors are shown rather than inventing data. This session is separate from Roblox Player's login.
-
-## Limitations
-- **Account features need the in-app sign-in.** Robux, friends, presence, friend requests, Robux transactions, private-server purchase/management, voting and tray notifications use the Roblox website session from the in-app sign-in. Roblox may change or restrict these undocumented endpoints; failures are shown, never faked. Many were not verified against a live account.
-- **Multiple accounts** can be added and switched in Muffin. This does not change which account Roblox Player uses.
-- **Playtime** is attributed to the last game launched through Muffin (`RobloxPlayerBeta.exe` detection) and is an estimate; games started outside Muffin are not recorded.
-- **Notifications** only work while Muffin is running (including in the tray) and show counts, never message text.
-- **After launch** (Settings → Launcher) can keep Muffin open, hide it to the tray, or close it once `RobloxPlayerBeta.exe` is detected within 60 s of a launch from Muffin. Closing Muffin stops playtime tracking; a session already open is closed at the last moment Muffin saw the player.
-- **Robux balance** in the top bar shows only while a Roblox account is signed in (hide it in Settings → Account → Top bar); it refreshes every 60 s while the window is visible.
-- **Import/export** is a local JSON file (no tokens or cookies); there is no cloud sync.
-- Not built by design: avatar editor, marketplace/inventory/trading, Roblox account/security settings.
-- **Launch ≠ connected.** Muffin hands the launch to the registered `roblox://` handler; it cannot know if the game started.
-- The Roblox Player uses its own login. Games launch as whichever account the Player/bootstrapper is signed into, which may differ from the account you signed in with inside Muffin.
-- Private servers: only the share-link form `https://www.roblox.com/share?code=…&type=Server` is accepted.
-
-## Data
-- `%APPDATA%/app.muffin.launcher/muffin.db`: library, history, private-server codes, recent searches, settings, API cache.
-- Roblox website session cookies (one per signed-in account): Windows Credential Manager (`app.muffin.launcher` / `roblox-web-session:<userId>`), never the database.
-- Settings → Privacy & Data can clear cache, history and searches.
+Muffin is built with Tauri 2 (Rust), React 19, TypeScript and Tailwind 4. All Roblox requests go through the Rust side, which only talks to a fixed list of Roblox hosts.
 
 ## Notices
-bloxlaunch (GPL-3.0) was used only as a behavioral reference for the `roblox://` launch URI forms. No code from it is used.
 
-MIT licensed — see `LICENSE`.
+bloxlaunch (GPL-3.0) was used only as a reference for how `roblox://` launch links are written. No code from it is used.
+
+MIT licensed. See `LICENSE`.
