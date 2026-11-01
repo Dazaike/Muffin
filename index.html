@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en" data-density="comfortable" data-lite="false" data-effects="on">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Muffin</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        background: #07070b;
+      }
+      #splash {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 22px;
+        background: #07070b;
+        transition: opacity 200ms ease;
+      }
+      #splash.hide {
+        opacity: 0;
+        pointer-events: none;
+      }
+      #splash svg {
+        width: 84px;
+        height: 84px;
+      }
+      #splash .bar {
+        position: relative;
+        width: 120px;
+        height: 3px;
+        border-radius: 3px;
+        overflow: hidden;
+        background: #151522;
+      }
+      #splash .bar::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(90deg, transparent, #8b5cf6, #38bdf8, transparent);
+        transform: translateX(-100%);
+        animation: splash-shimmer 1.2s ease-in-out infinite;
+      }
+      @keyframes splash-shimmer {
+        to {
+          transform: translateX(100%);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="splash" aria-hidden="true">
+      <svg viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+        <rect width="1024" height="1024" rx="232" fill="#1c1c24" />
+        <path
+          d="M512 214c-142 0-254 96-270 230-22 8-36 28-36 52 0 30 24 54 54 54h504c30 0 54-24 54-54 0-24-14-44-36-52C766 310 654 214 512 214Z"
+          fill="#fff"
+        />
+        <path d="M262 586h500l-48 224c-6 28-30 46-58 46H368c-28 0-52-18-58-46Z" fill="#fff" opacity=".92" />
+        <path d="M398 612l16 220M512 612v220M626 612l-16 220" stroke="#1c1c24" stroke-width="22" stroke-linecap="round" opacity=".4" />
+      </svg>
+      <div class="bar"></div>
+    </div>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

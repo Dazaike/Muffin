@@ -1,0 +1,51 @@
+@import "tailwindcss";
+@import "@fontsource-variable/geist";
+
+/* Runtime-variable accent: hue is user-adjustable through --accent-h (set on <html>). */
+:root {
+  --accent-h: 265;
+  --accent: oklch(0.66 0.19 var(--accent-h));
+  --accent-2: oklch(0.62 0.21 calc(var(--accent-h) + 20));
+  --accent-3: oklch(0.75 0.14 calc(var(--accent-h) - 50));
+  --accent-soft: oklch(0.66 0.19 var(--accent-h) / 0.18);
+  --accent-gradient: var(--accent);
+
+  --card-min: 176px;
+  --card-gap: 16px;
+  --poster-min: 168px;
+  --row-h: 76px;
+  --page-pad: clamp(16px, 3vw, 40px);
+
+  --shadow-elevated: 0 1px 0 #fff1 inset, 0 12px 32px -12px #000c;
+  --hairline: #ffffff0f;
+}
+
+html[data-density="compact"] {
+  --card-min: 148px;
+  --card-gap: 10px;
+  --poster-min: 140px;
+  --row-h: 62px;
+}
+
+@theme inline {
+  --color-bg: #07070b;
+  --color-surface: #0e0e16;
+  --color-raised: #151522;
+  --color-fg: #ececf4;
+  --color-muted: #8b8ba3;
+  --color-accent: var(--accent);
+  --color-accent-2: var(--accent-2);
+  --color-accent-3: var(--accent-3);
+  --color-accent-soft: var(--accent-soft);
+  --color-hairline: var(--hairline);
+  --color-danger: #f0556a;
+  --color-success: #3ddc97;
+
+  --radius-card: 14px;
+  --radius-panel: 20px;
+  --radius-hero: 28px;
+
+  --shadow-elevated: 0 1px 0 #fff1 inset, 0 12px 32px -12px #000c;
+
+  --font-sans: "Geist Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
