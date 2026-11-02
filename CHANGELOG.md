@@ -2,6 +2,14 @@
 
 All notable changes to Muffin are documented here. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [v0.1.2] - 2026-11-02
+
+### Added
+- macOS (`.dmg`) and Linux (`.deb`, `.AppImage`) builds.
+
+### Fixed
+- Roblox sign-in on macOS could spin forever after logging in: the session cookie is now also read from the full cookie list, and sign-in problems are written to `login-debug.log` in the app data folder (cookie names only, never values).
+
 ## [v0.1.1] - 2026-11-02
 
 The commits since v0.1.0 only touch the README (`33c18e2`). The rest of this release was developed in the working tree and is committed together in the release commit, so entries below come from the diff, not individual commits.

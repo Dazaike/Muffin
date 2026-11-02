@@ -361,6 +361,7 @@ pub async fn account_add(app: AppHandle, state: State<'_, AccountState>) -> Resu
     .on_new_window(|_, _| tauri::webview::NewWindowResponse::Deny)
     .build()
     .map_err(|_| AppError::auth_failed("Couldn't open the Roblox sign-in window"))?;
+    let mut polls = 0u32;
     loop {
         tokio::time::sleep(Duration::from_secs(2)).await;
         if state.generation.load(Ordering::SeqCst) != generation || app.get_webview_window(LOGIN_WINDOW).is_none() {
@@ -368,11 +369,22 @@ pub async fn account_add(app: AppHandle, state: State<'_, AccountState>) -> Resu
         }
         // Cookie access must not run in a WebView2 event handler or synchronous command.
         let window = login.clone();
-        let cookies = tokio::task::spawn_blocking(move || window.cookies_for_url(
-            url::Url::parse("https://www.roblox.com/").expect("static URL"),
-        )).await.map_err(|_| AppError::auth_failed("Couldn't read the Roblox session"))?
-            .map_err(|_| AppError::auth_failed("Couldn't read the Roblox session"))?;
-        let Some(cookie) = cookies.iter().find(|c| c.name() == ".ROBLOSECURITY" && !c.value().is_empty()) else { continue };
+        let cookies = tokio::task::spawn_blocking(move || {
+            let mut found = window.cookies_for_url(url::Url::parse("https://www.roblox.com/").expect("static URL")).unwrap_or_default();
+            // Some webview backends (WKWebView) don't scope cookies_for_url reliably; fall back to all cookies.
+            if !found.iter().any(|c| c.name() == ".ROBLOSECURITY" && !c.value().is_empty()) {
+                found = window.cookies().map_err(|e| e.to_string())?;
+            }
+            Ok::<_, String>(found)
+        }).await.map_err(|_| AppError::auth_failed("Couldn't read the Roblox session"))?
+            .map_err(|e| { login_log(&app, &format!("cookie read failed: {e}")); AppError::auth_failed("Couldn't read the Roblox session") })?;
+        let Some(cookie) = cookies.iter().find(|c| c.name() == ".ROBLOSECURITY" && !c.value().is_empty()) else {
+            polls += 1;
+            if polls % 15 == 1 {
+                login_log(&app, &format!("no .ROBLOSECURITY yet; {} cookies: {}", cookies.len(), cookies.iter().map(|c| format!("{}@{}", c.name(), c.domain().unwrap_or("?"))).collect::<Vec<_>>().join(", ")));
+            }
+            continue;
+        };
         let cookie = cookie.value().to_owned();
         match fetch_user(&cookie).await {
             Ok((id, username, display_name)) => {
@@ -381,7 +393,7 @@ pub async fn account_add(app: AppHandle, state: State<'_, AccountState>) -> Resu
                 if state.generation.load(Ordering::SeqCst) != generation || app.get_webview_window(LOGIN_WINDOW).is_none() {
                     return Err(AppError::new(ErrorCode::AuthDenied, "Roblox sign-in was cancelled"));
                 }
-                entry(&session_name(id))?.set_password(&cookie).map_err(|_| AppError::storage("Couldn't save the Roblox session"))?;
+                entry(&session_name(id))?.set_password(&cookie).map_err(|e| { login_log(&app, &format!("keychain save failed: {e}")); AppError::storage("Couldn't save the Roblox session") })?;
                 app.state::<Db>().with(|c| {
                     upsert_row(c, id, &username, &display_name, avatar.as_deref(), db::now_ms())?;
                     set_active(c, Some(id))
@@ -391,8 +403,18 @@ pub async fn account_add(app: AppHandle, state: State<'_, AccountState>) -> Resu
                 emit_changed(&app, Some(id));
                 return list(&app);
             }
-            Err(e) if e.code == ErrorCode::AuthExpired => continue,
-            Err(e) => { let _ = login.destroy(); return Err(e); }
+            Err(e) if e.code == ErrorCode::AuthExpired => { login_log(&app, "cookie found but Roblox rejected it (auth expired)"); continue }
+            Err(e) => { login_log(&app, &format!("user lookup failed: {}", e.message)); let _ = login.destroy(); return Err(e); }
+        }
+    }
+}
+
+/// Appends a line (cookie names only, never values) to `login-debug.log` in the app data dir.
+fn login_log(app: &AppHandle, msg: &str) {
+    use std::io::Write;
+    if let Ok(dir) = app.path().app_data_dir() {
+        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(dir.join("login-debug.log")) {
+            let _ = writeln!(f, "{} {msg}", db::now_ms());
         }
     }
 }
