@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Compass } from "lucide-react";
 import { EmptyState, StateSwitch } from "@/components/ui/StateSwitch";
 import { GameGrid, GridSkeleton, RowsSkeleton } from "@/components/lists/GameGrid";
@@ -14,7 +15,9 @@ const ALL = "__all__";
 
 export default function Discover() {
   const sorts = useSorts();
-  const [sortId, setSortId] = useState<string | undefined>();
+  // Home's "View All" links here with ?sort=<sort id>.
+  const [params] = useSearchParams();
+  const [sortId, setSortId] = useState<string | undefined>(params.get("sort") ?? undefined);
   const [genre, setGenre] = useState(ALL);
   const [filters, setFilters] = useState<ResultFilters>(NO_FILTERS);
   const view = useSettings((s) => s.values.discoverView);

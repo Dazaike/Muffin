@@ -5,7 +5,10 @@ mod continue_sync;
 mod db;
 mod error;
 mod economy;
+mod avatar3d;
 mod favorites_sync;
+mod fishstrap;
+mod fishstrap_launch;
 mod playtime;
 mod transfer;
 mod games_extra;
@@ -17,6 +20,8 @@ mod shortcut;
 mod social;
 mod store;
 mod tray;
+mod user_profile;
+mod watch;
 
 use tauri::{Manager, State, WebviewWindow, WindowEvent};
 use tauri_plugin_autostart::MacosLauncher;
@@ -164,11 +169,30 @@ pub fn run() {
             transfer::import_pick,
             transfer::import_apply,
             transfer::import_discard,
+            avatar3d::avatar_3d,
+            user_profile::user_profile,
+            user_profile::user_section,
             favorites_sync::sync_roblox_favorites,
             favorites_sync::apply_roblox_favorites,
             continue_sync::roblox_continue,
+            // -- Fishstrap
+            fishstrap_launch::fishstrap_launch_progress,
+            fishstrap_launch::fishstrap_launch_cancel,
+            fishstrap::fishstrap_status,
+            fishstrap::fishstrap_settings_get,
+            fishstrap::fishstrap_setting_set,
+            fishstrap::roblox_latest_version,
+            fishstrap::fishstrap_install,
+            fishstrap::fastflags_get,
+            fishstrap::fastflags_set,
+            fishstrap::fishstrap_mods,
+            fishstrap::fishstrap_open_mods,
+            fishstrap::fishstrap_cleanup,
+            fishstrap::fishstrap_open_download,
             // -- background notifications
             notifier::notifier_status,
+            watch::watch_list,
+            watch::watch_set,
             // -- social (friends, presence, follow graph, user search, join friend)
             social::friends_list,
             social::friends_presence,

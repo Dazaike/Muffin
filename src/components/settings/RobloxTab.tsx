@@ -1,6 +1,7 @@
 import { CircleAlert, CircleCheck, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { useRobloxStatus } from "@/lib/roblox";
+import { robloxInstallHint } from "@/lib/platform";
 import type { ProtocolStatus } from "@/lib/types";
 import { HANDLER_LABEL } from "./handler";
 import { SettingRow, SettingsSection } from "./SettingRow";
@@ -11,7 +12,7 @@ function troubleshooting(s: ProtocolStatus): { tone: Tone; text: string } {
   if (!s.registered) {
     return {
       tone: "warn",
-      text: "Roblox isn't registered on this PC, so roblox:// links have no handler. Install it from roblox.com/download, then press Re-check.",
+      text: `Roblox isn't registered on this PC, so roblox:// links have no handler. ${robloxInstallHint}, then press Re-check.`,
     };
   }
   if (!s.exeExists) {

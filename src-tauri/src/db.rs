@@ -68,6 +68,7 @@ impl Db {
         migrate(&mut conn)?;
         crate::account::ensure_schema(&conn)?;
         crate::playtime::ensure_schema(&conn)?;
+        crate::watch::ensure_schema(&conn)?;
         Ok(Self(Mutex::new(conn)))
     }
 

@@ -1,9 +1,10 @@
 import { useCallback, useId, type ReactNode } from "react";
 import { useSearchParams } from "react-router-dom";
 import { AnimatePresence, motion } from "motion/react";
-import { Database, Gamepad2, Palette, Rocket, UserRound, Zap } from "lucide-react";
+import { Database, Fish, Gamepad2, Palette, Rocket, UserRound, Zap } from "lucide-react";
 import { AccountTab } from "@/components/settings/AccountTab";
 import { AppearanceTab } from "@/components/settings/AppearanceTab";
+import { FishstrapTab } from "@/components/settings/FishstrapTab";
 import { LauncherTab } from "@/components/settings/LauncherTab";
 import { PerformanceTab } from "@/components/settings/PerformanceTab";
 import { PrivacyTab } from "@/components/settings/PrivacyTab";
@@ -11,15 +12,19 @@ import { RobloxTab } from "@/components/settings/RobloxTab";
 import { Page, PageHeader } from "@/components/ui/PageHeader";
 import { cn } from "@/lib/cn";
 import { useMotionPrefs } from "@/lib/motion";
+import { platform } from "@/lib/platform";
 
-const TABS = [
+const ALL_TABS = [
   { id: "appearance", label: "Appearance", icon: <Palette size={16} strokeWidth={1.75} />, content: <AppearanceTab /> },
   { id: "performance", label: "Performance", icon: <Zap size={16} strokeWidth={1.75} />, content: <PerformanceTab /> },
   { id: "launcher", label: "Launcher", icon: <Rocket size={16} strokeWidth={1.75} />, content: <LauncherTab /> },
   { id: "roblox", label: "Roblox", icon: <Gamepad2 size={16} strokeWidth={1.75} />, content: <RobloxTab /> },
+  { id: "fishstrap", label: "Fishstrap", icon: <Fish size={16} strokeWidth={1.75} />, content: <FishstrapTab /> },
   { id: "account", label: "Account", icon: <UserRound size={16} strokeWidth={1.75} />, content: <AccountTab /> },
   { id: "privacy", label: "Privacy & Data", icon: <Database size={16} strokeWidth={1.75} />, content: <PrivacyTab /> },
 ] as const satisfies readonly { id: string; label: string; icon: ReactNode; content: ReactNode }[];
+
+const TABS = ALL_TABS.filter((t) => t.id !== "fishstrap" || platform === "windows");
 
 type TabId = (typeof TABS)[number]["id"];
 
@@ -37,7 +42,7 @@ export default function Settings() {
     [setParams],
   );
 
-  const current = TABS.find((t) => t.id === active) ?? TABS[0];
+  const current = TABS.find((t) => t.id === active) ?? ALL_TABS[0];
 
   return (
     <Page>

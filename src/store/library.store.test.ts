@@ -10,6 +10,9 @@ vi.mock("@/lib/ipc", () => ({
     librarySetFlags: vi.fn(),
     libraryRemove: vi.fn(),
     libraryReorder: vi.fn(),
+    searchesRemove: vi.fn(),
+    searchesAdd: vi.fn(),
+    searchesClear: vi.fn(),
   },
   toAppError: (e: unknown) => ({ code: "storage", message: e instanceof Error ? e.message : String(e) }),
 }));
@@ -118,9 +121,10 @@ describe("removeFromLibrary", () => {
 
     const toast = useUi.getState().toasts.at(-1);
     expect(toast?.message).toBe("Removed Alpha");
-    expect(toast?.action?.label).toBe("Undo");
+    expect(toast?.undo?.duration).toBeGreaterThan(0);
+    expect(toast?.action).toBeUndefined();
 
-    toast?.action?.onClick();
+    toast?.undo?.onUndo();
     // Optimistic restore is synchronous; the IPC round-trip settles on the next ticks.
     expect(useLibrary.getState().entries.map((e) => e.placeId)).toEqual([1, 2]);
     await vi.waitFor(() => expect(api.libraryUpsert).toHaveBeenCalledTimes(1));
@@ -146,5 +150,88 @@ describe("reorder", () => {
     await pending;
     expect(useLibrary.getState().entries.map((e) => e.placeId)).toEqual([1, 2, 3]);
     expect(useUi.getState().toasts[0]?.kind).toBe("error");
+  });
+});
+
+describe("undoable flag changes", () => {
+  it("un-favorite offers an undo that restores the flag without another undo toast", async () => {
+    useLibrary.setState({ entries: [entry({ favorite: true })] });
+    api.librarySetFlags.mockResolvedValue(null);
+
+    await useLibrary.getState().toggleFavorite(game);
+    expect(useLibrary.getState().entries[0]?.favorite).toBe(false);
+    const t = useUi.getState().toasts.at(-1);
+    expect(t?.message).toBe("Removed Alpha from favorites");
+
+    t?.undo?.onUndo();
+    expect(useLibrary.getState().entries[0]?.favorite).toBe(true);
+    await vi.waitFor(() => expect(api.librarySetFlags).toHaveBeenLastCalledWith(1, { favorite: true }));
+    expect(useUi.getState().toasts.filter((x) => x.undo)).toHaveLength(1);
+  });
+
+  it("unpin undo re-pins", async () => {
+    useLibrary.setState({ entries: [entry({ pinned: true })] });
+    api.librarySetFlags.mockResolvedValue(null);
+
+    await useLibrary.getState().togglePin(game);
+    expect(useUi.getState().toasts.at(-1)?.message).toBe("Unpinned Alpha");
+    useUi.getState().toasts.at(-1)?.undo?.onUndo();
+    expect(useLibrary.getState().entries[0]?.pinned).toBe(true);
+    await vi.waitFor(() => expect(api.librarySetFlags).toHaveBeenLastCalledWith(1, { pinned: true }));
+  });
+
+  it("a failed toggle shows only the error, no undo", async () => {
+    useLibrary.setState({ entries: [entry({ pinned: true })] });
+    api.librarySetFlags.mockRejectedValue(new Error("locked"));
+
+    await useLibrary.getState().togglePin(game);
+    expect(useLibrary.getState().entries[0]?.pinned).toBe(true);
+    expect(useUi.getState().toasts.map((x) => x.kind)).toEqual(["error"]);
+    expect(useUi.getState().toasts.some((x) => x.undo)).toBe(false);
+  });
+
+  it("undoing a first-time favorite removes the row again", async () => {
+    api.libraryUpsert.mockResolvedValue(entry({ favorite: true }));
+    api.libraryRemove.mockResolvedValue(null);
+
+    await useLibrary.getState().toggleFavorite(game);
+    expect(useUi.getState().toasts.at(-1)?.message).toBe("Added Alpha to favorites");
+
+    useUi.getState().toasts.at(-1)?.undo?.onUndo();
+    expect(useLibrary.getState().entries).toEqual([]);
+    await vi.waitFor(() => expect(api.libraryRemove).toHaveBeenCalledWith(1));
+  });
+});
+
+describe("recent searches", () => {
+  it("undo of a single removal puts it back at its old slot and re-adds in recency order", async () => {
+    useLibrary.setState({ searches: ["a", "b", "c"] });
+    api.searchesRemove.mockResolvedValue(null);
+    api.searchesAdd.mockResolvedValue(null);
+
+    await useLibrary.getState().removeSearch("b");
+    expect(useLibrary.getState().searches).toEqual(["a", "c"]);
+
+    useUi.getState().toasts.at(-1)?.undo?.onUndo();
+    expect(useLibrary.getState().searches).toEqual(["a", "b", "c"]);
+    await vi.waitFor(() => expect(api.searchesAdd).toHaveBeenCalledTimes(2));
+    // Re-added bottom-up so "a" ends up as the most recent again.
+    expect(api.searchesAdd.mock.calls.map((c) => c[0])).toEqual(["b", "a"]);
+  });
+
+  it("clearing is only undoable when asked, and undo restores the list", async () => {
+    useLibrary.setState({ searches: ["a", "b"] });
+    api.searchesClear.mockResolvedValue(null);
+    api.searchesAdd.mockResolvedValue(null);
+
+    await useLibrary.getState().clearSearches();
+    expect(useUi.getState().toasts).toHaveLength(0);
+
+    useLibrary.setState({ searches: ["a", "b"] });
+    await useLibrary.getState().clearSearches({ undoable: true });
+    expect(useLibrary.getState().searches).toEqual([]);
+    useUi.getState().toasts.at(-1)?.undo?.onUndo();
+    expect(useLibrary.getState().searches).toEqual(["a", "b"]);
+    await vi.waitFor(() => expect(api.searchesAdd.mock.calls.map((c) => c[0])).toEqual(["b", "a"]));
   });
 });

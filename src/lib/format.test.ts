@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dayBucket, formatCompact, formatDate, formatDuration, percent, relativeTime } from "./format";
+import { dayBucket, formatBytes, formatCompact, formatDate, formatDuration, percent, relativeTime } from "./format";
 
 describe("formatCompact", () => {
   it.each([
@@ -92,5 +92,17 @@ describe("formatDate", () => {
     expect(formatDate(null)).toBeNull();
     expect(formatDate("")).toBeNull();
     expect(formatDate("not a date")).toBeNull();
+  });
+});
+
+describe("formatBytes", () => {
+  it.each([
+    [0, "0 B"],
+    [1023, "1023 B"],
+    [2048, "2.0 KB"],
+    [5 * 1024 * 1024, "5.0 MB"],
+    [3 * 1024 ** 3, "3.00 GB"],
+  ])("%d → %s", (n, out) => {
+    expect(formatBytes(n)).toBe(out);
   });
 });

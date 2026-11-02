@@ -10,6 +10,7 @@ import { ResultFilterBar } from "@/components/lists/ResultFilterBar";
 import { SearchField } from "@/components/lists/SearchField";
 import { SuggestionList } from "@/components/lists/SuggestionList";
 import { ViewToggle } from "@/components/lists/ViewToggle";
+import { Button } from "@/components/ui/Button";
 import { Page, PageHeader } from "@/components/ui/PageHeader";
 import { useScrollParent } from "@/components/ui/ScrollParent";
 import { EmptyState, StateSwitch } from "@/components/ui/StateSwitch";
@@ -295,7 +296,7 @@ export default function Search() {
           searches={searches}
           onPick={runSearch}
           onRemove={(s) => void removeSearch(s)}
-          onClear={() => void clearSearches()}
+          onClear={() => void clearSearches({ undoable: true })}
         />
       )}
 
@@ -331,13 +332,9 @@ function Idle({
     <section aria-label="Recent searches">
       <div className="mb-3 flex items-center justify-between">
         <h2 className="text-sm font-medium text-muted">{single ? "Type at least 2 characters — or pick a recent search" : "Recent searches"}</h2>
-        <button
-          type="button"
-          onClick={onClear}
-          className="focus-ring cursor-pointer rounded-md px-2 py-1 text-[13px] text-muted transition-colors hover:text-fg"
-        >
+        <Button variant="ghost" size="sm" onClick={onClear}>
           Clear
-        </button>
+        </Button>
       </div>
       <div className="flex flex-wrap gap-2">
         <AnimatePresence mode="popLayout">

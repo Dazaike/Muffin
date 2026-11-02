@@ -1,4 +1,5 @@
 import { ipc, toAppError } from "@/lib/ipc";
+import { writeClipboard } from "@/lib/useCopyFeedback";
 import { toast } from "@/store/ui";
 
 /** The experience's page on roblox.com (also what "Copy link" copies). */
@@ -12,7 +13,7 @@ export function openLink(url: string): void {
 /** Copies text through the webview clipboard, with a toast either way. */
 export async function copyText(text: string, doneMessage: string): Promise<void> {
   try {
-    await navigator.clipboard.writeText(text);
+    await writeClipboard(text);
     toast.success(doneMessage);
   } catch {
     toast.error("Couldn't copy to the clipboard");

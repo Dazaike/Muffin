@@ -429,11 +429,15 @@ enum Kind {
     OneOf(&'static [&'static str]),
     /// Whole number within the inclusive range.
     Int(i64, i64),
+    /// `#rrggbb` colour.
+    Hex,
 }
 
 /// The `settings_set` allowlist (`activeAccountId` is intentionally absent: Rust writes it).
 const SETTINGS: &[(&str, Kind)] = &[
     ("accentHue", Kind::Int(0, 359)),
+    // app background colour (not the accent)
+    ("backgroundColor", Kind::Hex),
     ("density", Kind::OneOf(&["comfortable", "compact"])),
     ("animationIntensity", Kind::OneOf(&["full", "reduced", "off"])),
     ("reduceMotion", Kind::Bool),
@@ -445,6 +449,10 @@ const SETTINGS: &[(&str, Kind)] = &[
     ("showRobux", Kind::Bool),
     ("notifications", Kind::Bool),
     ("continueFromRoblox", Kind::Bool),
+    // launch Roblox through Fishstrap without its window (fishstrap_launch.rs)
+    ("hideFishstrap", Kind::Bool),
+    // whether to offer installing Fishstrap when it's missing; "declined" keeps the stock Roblox launch
+    ("fishstrapPrompt", Kind::OneOf(&["ask", "declined"])),
     // background notifier (notifier.rs)
     ("notifyMessages", Kind::Bool),
     ("notifyFriendRequests", Kind::Bool),
@@ -477,6 +485,10 @@ const SETTINGS: &[(&str, Kind)] = &[
     ("backgroundDim", Kind::Int(0, 90)),
     ("backgroundBlur", Kind::Int(0, 24)),
 ];
+/// `#rrggbb`.
+fn is_hex_colour(s: &str) -> bool {
+    s.len() == 7 && s.starts_with('#') && s[1..].bytes().all(|b| b.is_ascii_hexdigit())
+}
 
 pub fn validate_setting(key: &str, value: &Value) -> Result<()> {
     let Some((_, kind)) = SETTINGS.iter().find(|(k, _)| *k == key) else {
@@ -487,6 +499,7 @@ pub fn validate_setting(key: &str, value: &Value) -> Result<()> {
         Kind::OneOf(allowed) => value.as_str().is_some_and(|s| allowed.contains(&s)),
         // `as_i64` is None for floats, so 5.5 and 1e2 are rejected, not truncated.
         Kind::Int(min, max) => value.as_i64().is_some_and(|n| (*min..=*max).contains(&n)),
+        Kind::Hex => value.as_str().is_some_and(is_hex_colour),
     };
     if ok {
         Ok(())
@@ -718,6 +731,10 @@ mod tests {
         assert!(validate_setting("accentHue", &Value::from(265.5)).is_err());
         assert!(validate_setting("accentHue", &Value::from("265")).is_err());
         assert!(validate_setting("accent", &Value::from("rose")).is_err());
+        assert!(validate_setting("backgroundColor", &Value::from("#0b1220")).is_ok());
+        for bad in ["0b1220", "#0b122", "#0b12200", "#gggggg", "red"] {
+            assert!(validate_setting("backgroundColor", &Value::from(bad)).is_err(), "{bad}");
+        }
         assert!(validate_setting("discoverCards", &Value::from("vertical")).is_ok());
         assert!(validate_setting("discoverCards", &Value::from("horizontal")).is_ok());
         assert!(validate_setting("discoverCards", &Value::from("wide")).is_err());

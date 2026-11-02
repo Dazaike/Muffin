@@ -17,7 +17,7 @@ use crate::error::{AppError, ErrorCode, Result};
 /// Subdomains of `roblox.com` callers may reach. `auth` and `premiumfeatures` are deliberately absent.
 const HOSTS: &[&str] = &[
     "users", "economy", "friends", "games", "thumbnails", "presence", "chat", "badges", "apis",
-    "followings",
+    "followings", "groups", "inventory", "avatar",
 ];
 /// `www.roblox.com` is only reachable for these path prefixes (game instance / private-server pages).
 const WWW_PATH_PREFIXES: &[&str] = &["/games/", "/game/", "/private-servers/"];
@@ -83,6 +83,11 @@ pub(crate) fn resolve(host: &str, path_and_query: &str) -> Result<url::Url> {
     }
     // Check the parsed path: dot segments are normalised away by the parser.
     if fqdn == "www.roblox.com" && !WWW_PATH_PREFIXES.iter().any(|p| url.path().starts_with(p)) {
+        return Err(bad());
+    }
+    // The inventory host carries the signed-in user's own items too; only another user's public
+    // collectibles listing is reachable.
+    if fqdn == "inventory.roblox.com" && !(url.path().starts_with("/v1/users/") && url.path().ends_with("/assets/collectibles")) {
         return Err(bad());
     }
     Ok(url)
@@ -252,9 +257,17 @@ mod tests {
     fn allowlist_accepts_short_and_full_names() {
         assert_eq!(resolve("users", "/v1/users/1").unwrap().as_str(), "https://users.roblox.com/v1/users/1");
         assert_eq!(resolve("apis.roblox.com", "/x?a=b").unwrap().host_str(), Some("apis.roblox.com"));
-        for h in HOSTS {
+        for h in HOSTS.iter().filter(|h| **h != "inventory") {
             assert!(resolve(h, "/v1/x").is_ok(), "{h}");
         }
+    }
+
+    #[test]
+    fn inventory_host_only_serves_the_collectibles_listing() {
+        assert!(resolve("inventory", "/v1/users/5/assets/collectibles?limit=50").is_ok());
+        assert!(resolve("inventory", "/v2/users/5/inventory/8").is_err());
+        assert!(resolve("inventory", "/v1/users/5/categories").is_err());
+        assert!(resolve("inventory", "/v1/x").is_err());
     }
 
     #[test]

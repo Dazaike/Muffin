@@ -5,6 +5,7 @@ import { toast } from "./ui";
 
 export const DEFAULT_SETTINGS: Settings = {
   accentHue: 265,
+  backgroundColor: "#07070b",
   density: "comfortable",
   animationIntensity: "full",
   reduceMotion: false,
@@ -21,6 +22,8 @@ export const DEFAULT_SETTINGS: Settings = {
   notifyFriendsOnline: false,
   notifyOnlyWhenHidden: true,
   globalShortcut: true,
+  hideFishstrap: true,
+  fishstrapPrompt: "ask",
   libraryView: "grid",
   friendsView: "list",
   searchView: "list",
@@ -52,6 +55,7 @@ const ENUMS: Partial<Record<SettingKey, readonly string[]>> = {
   animationIntensity: ["full", "reduced", "off"],
   closeBehavior: ["quit", "tray"],
   afterLaunch: ["nothing", "tray", "quit"],
+  fishstrapPrompt: ["ask", "declined"],
   libraryView: ["grid", "list"],
   friendsView: ["grid", "list"],
   searchView: ["grid", "list"],
@@ -80,6 +84,8 @@ const INT_RANGES: Partial<Record<SettingKey, { min: number; max: number }>> = {
   backgroundBlur: BACKGROUND_BLUR_RANGE,
 };
 
+export const HEX_COLOUR = /^#[0-9a-fA-F]{6}$/;
+
 /** Merge raw persisted values over defaults, dropping anything with the wrong type. */
 export function mergeSettings(raw: Record<string, unknown> | undefined | null): Settings {
   const out: Settings = { ...DEFAULT_SETTINGS };
@@ -92,6 +98,7 @@ export function mergeSettings(raw: Record<string, unknown> | undefined | null): 
     if (allowed && !allowed.includes(v as string)) continue;
     const range = INT_RANGES[key];
     if (range && !(Number.isInteger(v) && (v as number) >= range.min && (v as number) <= range.max)) continue;
+    if (key === "backgroundColor" && !HEX_COLOUR.test(v as string)) continue;
     target[key] = v;
   }
   return out;
@@ -138,4 +145,5 @@ export function applySettingsToDom(v: Settings, root: HTMLElement = document.doc
   root.dataset.effects = v.animationIntensity === "off" ? "off" : "on";
   root.dataset.bgImage = String(v.backgroundImage);
   root.style.setProperty("--accent-h", String(v.accentHue));
+  root.style.setProperty("--app-bg", v.backgroundColor);
 }

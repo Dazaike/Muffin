@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
 import { X } from "lucide-react";
+import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/cn";
 import { useMotionPrefs } from "@/lib/motion";
 
@@ -168,7 +169,7 @@ export function ConfirmModal({
   );
 }
 
-function ModalButton({
+export function ModalButton({
   children,
   onClick,
   primary,
@@ -182,16 +183,12 @@ function ModalButton({
   autoFocus?: boolean;
 }) {
   return (
-    <button
-      type="button"
+    <Button
       data-autofocus={autoFocus ? "" : undefined}
       onClick={onClick}
-      className={cn(
-        "focus-ring h-10 cursor-pointer rounded-[12px] px-4 text-sm font-medium transition-colors",
-        primary ? (danger ? "bg-danger text-white hover:brightness-110" : "accent-gradient text-white") : "bg-white/6 hover:bg-white/10",
-      )}
+      variant={primary ? (danger ? "danger" : "primary") : "glass"}
     >
       {children}
-    </button>
+    </Button>
   );
 }

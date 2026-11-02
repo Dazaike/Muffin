@@ -8,6 +8,7 @@ use std::time::{Duration, Instant};
 use rusqlite::{params, OptionalExtension};
 use serde::Serialize;
 use tauri::{AppHandle, State};
+#[cfg(windows)]
 use winreg::{enums::HKEY_CLASSES_ROOT, RegKey};
 
 use crate::db::{now_ms, Db};
@@ -137,6 +138,7 @@ pub struct ProtocolStatus {
 
 /// Executable part of a shell command: the quoted prefix, else up to the first `.exe`, else up to
 /// the first whitespace.
+#[cfg(windows)]
 pub fn extract_exe_path(command: &str) -> Option<String> {
     let c = command.trim();
     if c.is_empty() {
@@ -154,6 +156,7 @@ pub fn extract_exe_path(command: &str) -> Option<String> {
     c.split_whitespace().next().map(str::to_string)
 }
 
+#[cfg(windows)]
 pub fn classify_handler(exe_path: &str) -> Handler {
     let stem = exe_path
         .rsplit(['\\', '/'])
@@ -172,6 +175,7 @@ pub fn classify_handler(exe_path: &str) -> Handler {
     }
 }
 
+#[cfg(windows)]
 pub fn status_from_command(
     command: Option<String>,
     exists: impl Fn(&str) -> bool,
@@ -198,6 +202,7 @@ pub fn status_from_command(
     }
 }
 
+#[cfg(windows)]
 fn read_registered_command() -> Option<String> {
     RegKey::predef(HKEY_CLASSES_ROOT)
         .open_subkey(r"roblox\shell\open\command")
@@ -206,10 +211,108 @@ fn read_registered_command() -> Option<String> {
         .ok()
 }
 
+#[cfg(windows)]
 pub fn protocol_status() -> ProtocolStatus {
     status_from_command(read_registered_command(), |p| {
         std::path::Path::new(p).is_file()
     })
+}
+
+#[cfg(not(windows))]
+fn unregistered() -> ProtocolStatus {
+    ProtocolStatus { registered: false, command: None, exe_path: None, exe_exists: false, handler: Handler::None }
+}
+
+#[cfg(target_os = "macos")]
+fn macos_status_from(found: Option<String>) -> ProtocolStatus {
+    match found {
+        Some(p) => ProtocolStatus {
+            registered: true,
+            command: Some(p.clone()),
+            exe_path: Some(p),
+            exe_exists: true,
+            handler: Handler::Roblox,
+        },
+        None => unregistered(),
+    }
+}
+
+/// Roblox.app lives in /Applications (or the per-user Applications/Library folders).
+#[cfg(target_os = "macos")]
+pub fn protocol_status() -> ProtocolStatus {
+    let mut candidates = vec!["/Applications/Roblox.app".to_string(), "/Applications/RobloxPlayer.app".to_string()];
+    if let Some(home) = std::env::var_os("HOME") {
+        let home = std::path::PathBuf::from(home);
+        for rel in ["Applications/Roblox.app", "Library/Roblox/UnzippedBundle/RobloxPlayer.app"] {
+            candidates.push(home.join(rel).to_string_lossy().into_owned());
+        }
+    }
+    macos_status_from(candidates.into_iter().find(|p| std::path::Path::new(p).is_dir()))
+}
+
+#[cfg(target_os = "linux")]
+const SOBER_APP_ID: &str = "org.vinegarhq.Sober";
+
+#[cfg(target_os = "linux")]
+fn sober_installed() -> bool {
+    use std::process::{Command, Stdio};
+    Command::new("flatpak")
+        .args(["info", SOBER_APP_ID])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .is_ok_and(|s| s.success())
+}
+
+#[cfg(target_os = "linux")]
+fn linux_status_from(sober: bool, xdg_default: Option<&str>) -> ProtocolStatus {
+    if sober {
+        let cmd = format!("flatpak run {SOBER_APP_ID}");
+        return ProtocolStatus { registered: true, command: Some(cmd), exe_path: None, exe_exists: true, handler: Handler::Roblox };
+    }
+    match xdg_default.map(str::trim).filter(|d| !d.is_empty()) {
+        Some(d) => {
+            let l = d.to_lowercase();
+            let handler = if l.contains("sober") || l.contains("roblox") { Handler::Roblox } else { Handler::Other };
+            ProtocolStatus { registered: true, command: Some(d.to_string()), exe_path: None, exe_exists: true, handler }
+        }
+        None => unregistered(),
+    }
+}
+
+#[cfg(target_os = "linux")]
+pub fn protocol_status() -> ProtocolStatus {
+    let xdg = std::process::Command::new("xdg-mime")
+        .args(["query", "default", "x-scheme-handler/roblox"])
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .map(|o| String::from_utf8_lossy(&o.stdout).into_owned());
+    linux_status_from(sober_installed(), xdg.as_deref())
+}
+
+#[cfg(windows)]
+fn open_uri(_status: &ProtocolStatus, uri: &str) -> std::result::Result<(), String> {
+    tauri_plugin_opener::open_url(uri, None::<&str>).map_err(|e| e.to_string())
+}
+
+/// `open -a <Roblox.app> <uri>` delivers the URL to Roblox regardless of which app owns the scheme.
+#[cfg(target_os = "macos")]
+fn open_uri(status: &ProtocolStatus, uri: &str) -> std::result::Result<(), String> {
+    tauri_plugin_opener::open_url(uri, status.exe_path.as_deref()).map_err(|e| e.to_string())
+}
+
+#[cfg(target_os = "linux")]
+fn open_uri(_status: &ProtocolStatus, uri: &str) -> std::result::Result<(), String> {
+    if sober_installed() {
+        std::process::Command::new("flatpak")
+            .args(["run", SOBER_APP_ID, "--", uri])
+            .spawn()
+            .map(drop)
+            .map_err(|e| e.to_string())
+    } else {
+        tauri_plugin_opener::open_url(uri, None::<&str>).map_err(|e| e.to_string())
+    }
 }
 
 pub fn ensure_installed(status: &ProtocolStatus) -> Result<()> {
@@ -261,11 +364,21 @@ fn debounce(last: &Mutex<Option<Instant>>, now: Instant) -> Result<()> {
     Ok(())
 }
 
-fn hand_off(uri: &str) -> Result<()> {
+fn hand_off(app: &AppHandle, db: &Db, uri: &str) -> Result<()> {
     let status = protocol_status();
     ensure_installed(&status)?;
     debounce(&LAST_LAUNCH, Instant::now())?;
-    tauri_plugin_opener::open_url(uri, None::<&str>).map_err(|e| {
+    // "Hide Fishstrap": start Fishstrap without its window and report its progress inside Muffin.
+    let hidden_exe = status
+        .exe_path
+        .as_deref()
+        .filter(|_| status.handler == Handler::Fishstrap && status.exe_exists)
+        .filter(|_| db.with(|c| Ok(crate::db::setting_bool(c, "hideFishstrap", true))).unwrap_or(true));
+    let result = match hidden_exe {
+        Some(exe) => crate::fishstrap_launch::start_hidden(app, std::path::Path::new(exe), uri).map_err(|e| e.to_string()),
+        None => open_uri(&status, uri),
+    };
+    result.map_err(|e| {
         // The launch never happened, so let the user retry immediately.
         *LAST_LAUNCH.lock().unwrap_or_else(|e| e.into_inner()) = None;
         AppError::new(
@@ -288,7 +401,7 @@ pub fn launch_experience(
     let place_id = validate_place_id(place_id)?;
     let universe_id = universe_id.map(to_db_id).transpose()?.map(|v| v as u64);
     let name = clean_name(&name).unwrap_or_else(|_| "Roblox experience".to_string());
-    hand_off(&experience_uri(place_id))?;
+    hand_off(&app, &db, &experience_uri(place_id))?;
     record_launch(&db, place_id, universe_id, &name, clean_icon_url(icon_url), genre);
     crate::after_launch::start(&app);
     Ok(LaunchResult { handed_off: true })
@@ -329,7 +442,7 @@ pub fn launch_instance(
     let instance_id = parse_instance_id(&instance_id)?;
     let universe_id = universe_id.map(to_db_id).transpose()?.map(|v| v as u64);
     let name = clean_name(&name).unwrap_or_else(|_| "Roblox experience".to_string());
-    hand_off(&instance_uri(place_id, &instance_id))?;
+    hand_off(&app, &db, &instance_uri(place_id, &instance_id))?;
     record_launch(&db, place_id, universe_id, &name, clean_icon_url(icon_url), genre);
     crate::after_launch::start(&app);
     Ok(LaunchResult { handed_off: true })
@@ -340,7 +453,7 @@ pub fn launch_private_server(app: AppHandle, db: State<'_, Db>, server_id: i64) 
     let server = db
         .with(|c| get_private_server(c, server_id))?
         .ok_or_else(|| AppError::invalid("That private server no longer exists"))?;
-    hand_off(&private_server_uri(&server.code, &server.kind))?;
+    hand_off(&app, &db, &private_server_uri(&server.code, &server.kind))?;
     let name = db
         .with(|c| Ok(known_place_name(c, server.place_id as i64)))?
         .unwrap_or_else(|| "Roblox experience".to_string());
@@ -473,8 +586,10 @@ mod tests {
     use super::*;
     use crate::db::test_conn;
 
+    #[cfg(windows)]
     const FISHSTRAP: &str =
         r#""C:\Users\Example\AppData\Local\Fishstrap\Fishstrap.exe" -player "%1""#;
+    #[cfg(windows)]
     const ROBLOX: &str =
         r#""C:\Program Files\Roblox\Versions\x\RobloxPlayerLauncher.exe" %1"#;
 
@@ -578,6 +693,7 @@ mod tests {
         assert!(parse_share_link(&long).is_err());
     }
 
+    #[cfg(windows)]
     #[test]
     fn handler_fishstrap() {
         let s = status_from_command(Some(FISHSTRAP.into()), |_| true);
@@ -589,6 +705,7 @@ mod tests {
         );
     }
 
+    #[cfg(windows)]
     #[test]
     fn handler_roblox_with_spaces_in_quoted_path() {
         let s = status_from_command(Some(ROBLOX.into()), |_| false);
@@ -600,6 +717,7 @@ mod tests {
         assert!(s.registered && !s.exe_exists);
     }
 
+    #[cfg(windows)]
     #[test]
     fn handler_unquoted_and_other() {
         let s = status_from_command(
@@ -625,6 +743,7 @@ mod tests {
         assert_eq!(s.handler, Handler::Roblox);
     }
 
+    #[cfg(windows)]
     #[test]
     fn handler_none_when_unregistered() {
         for cmd in [None, Some("   ".to_string())] {
@@ -635,6 +754,7 @@ mod tests {
         }
     }
 
+    #[cfg(windows)]
     #[test]
     fn not_installed_is_driven_by_status() {
         let none = status_from_command(None, |_| true);
@@ -647,6 +767,7 @@ mod tests {
         assert!(ensure_installed(&ok).is_ok());
     }
 
+    #[cfg(windows)]
     #[test]
     fn status_serializes_per_contract() {
         let s = status_from_command(Some(FISHSTRAP.into()), |_| true);
@@ -657,6 +778,49 @@ mod tests {
         let none = serde_json::to_value(status_from_command(None, |_| true)).unwrap();
         assert_eq!(none["handler"], "none");
         assert!(none["command"].is_null());
+    }
+
+    #[test]
+    fn ensure_installed_rejects_unregistered_and_missing_exe() {
+        let st = |registered, exe_path: Option<&str>, exe_exists| ProtocolStatus {
+            registered,
+            command: None,
+            exe_path: exe_path.map(str::to_string),
+            exe_exists,
+            handler: Handler::Roblox,
+        };
+        assert_eq!(ensure_installed(&st(false, None, false)).unwrap_err().code, ErrorCode::NotInstalled);
+        let e = ensure_installed(&st(true, Some("/x"), false)).unwrap_err();
+        assert_eq!(e.code, ErrorCode::NotInstalled);
+        assert!(e.message.contains("/x"));
+        assert!(ensure_installed(&st(true, Some("/x"), true)).is_ok());
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn macos_status_maps_found_app() {
+        let s = macos_status_from(Some("/Applications/Roblox.app".into()));
+        assert!(s.registered && s.exe_exists);
+        assert_eq!(s.handler, Handler::Roblox);
+        assert_eq!(s.exe_path.as_deref(), Some("/Applications/Roblox.app"));
+        let none = macos_status_from(None);
+        assert!(!none.registered && !none.exe_exists);
+        assert_eq!(none.handler, Handler::None);
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn linux_status_maps_sober_and_xdg() {
+        assert_eq!(linux_status_from(true, None).handler, Handler::Roblox);
+        assert_eq!(linux_status_from(false, Some("org.vinegarhq.Sober.desktop")).handler, Handler::Roblox);
+        let other = linux_status_from(false, Some("firefox.desktop"));
+        assert!(other.registered);
+        assert_eq!(other.handler, Handler::Other);
+        for none in [None, Some(""), Some("  ")] {
+            let s = linux_status_from(false, none);
+            assert!(!s.registered && !s.exe_exists);
+            assert_eq!(s.handler, Handler::None);
+        }
     }
 
     #[test]

@@ -28,8 +28,19 @@ import type {
   NotifierNotice,
   NotifierStatus,
   ProtocolStatus,
+  FishstrapStatus,
+  FastFlag,
+  ModsInfo,
+  CleanupResult,
+  FishstrapLaunchProgress,
+  FishstrapSetting,
+  FishstrapSettingValue,
+  WatchKind,
+  WatchList,
 } from "./types";
 import type { BackgroundInfo, BackgroundMeta } from "./types";
+import type { Avatar3d } from "./avatar3d";
+import type { ProfileSection, SectionData, UserProfile } from "./userProfile";
 import type { AwardedBadge, RecommendedGame, SocialLink, VoteState } from "./gameExtras";
 import type {
   OwnedServer,
@@ -160,6 +171,25 @@ export const notify = {
 export const ipc = {
   rbxGet: <T = unknown>(req: RbxRequest) => call<T>("rbx_get", { req }),
   robloxStatus: () => call<ProtocolStatus>("roblox_status"),
+  avatar3d: (userId: number) => call<Avatar3d>("avatar_3d", { userId }),
+  userProfile: (userId: number) => call<UserProfile>("user_profile", { userId }),
+  userSection: (userId: number, section: ProfileSection) => call<SectionData>("user_section", { userId, section }),
+  fishstrapStatus: () => call<FishstrapStatus>("fishstrap_status"),
+  fishstrapSettingsGet: () => call<FishstrapSetting[]>("fishstrap_settings_get"),
+  fishstrapSettingSet: (key: string, value: FishstrapSettingValue) =>
+    call<void>("fishstrap_setting_set", { key, value }),
+  robloxLatestVersion: (channel?: string) => call<string | null>("roblox_latest_version", { channel }),
+  fastflagsGet: () => call<FastFlag[]>("fastflags_get"),
+  fastflagsSet: (flags: FastFlag[]) => call<number>("fastflags_set", { flags }),
+  fishstrapMods: () => call<ModsInfo>("fishstrap_mods"),
+  fishstrapOpenMods: () => call<void>("fishstrap_open_mods"),
+  fishstrapCleanup: () => call<CleanupResult>("fishstrap_cleanup"),
+  fishstrapOpenDownload: () => call<void>("fishstrap_open_download"),
+  fishstrapInstall: () => call<void>("fishstrap_install"),
+  fishstrapLaunchProgress: () => call<FishstrapLaunchProgress | null>("fishstrap_launch_progress"),
+  fishstrapLaunchCancel: () => call<boolean>("fishstrap_launch_cancel"),
+  onFishstrapLaunch: (cb: (p: FishstrapLaunchProgress) => void): Promise<() => void> =>
+    listen<FishstrapLaunchProgress>("fishstrap-launch", (e) => cb(e.payload)),
   launchExperience: (a: LaunchExperienceArgs) =>
     call<LaunchResult>("launch_experience", {
       placeId: a.placeId,
@@ -234,6 +264,8 @@ export const ipc = {
   /** Subscribes to the one-shot notice the poller emits when it stops (e.g. session expired). */
   onNotifierNotice: (cb: (n: NotifierNotice) => void): Promise<() => void> =>
     listen<NotifierNotice>("notifier-notice", (e) => cb(e.payload)),
+  watchList: () => call<WatchList>("watch_list"),
+  watchSet: (kind: WatchKind, id: number, on: boolean) => call<void>("watch_set", { kind, id, on }),
 
   // -- economy: Robux history + private servers
   economyBalance: () => call<number>("economy_balance"),

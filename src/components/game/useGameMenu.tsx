@@ -4,18 +4,30 @@ import { Heart, HeartOff, Info, Pin, PinOff, Play, Plus, Trash2 } from "lucide-r
 import type { MenuEntry } from "@/components/ui/Menu";
 import { toGameRef } from "@/lib/launch";
 import { gamePath, type GameRouteState } from "@/lib/links";
+import { navigateWithMorph } from "@/lib/gameTransition";
+import { useMotionPrefs } from "@/lib/motion";
 import type { CardGame } from "@/lib/types";
 import { useLaunch } from "@/store/launch";
 import { useLibrary } from "@/store/library";
 
 const ICON = { size: 16, strokeWidth: 1.75 } as const;
 
-/** Opens a game's details page, seeding the route so the page paints instantly. */
-export function useOpenGame(): (game: CardGame) => void {
+/**
+ * Opens a game's details page, seeding the route so the page paints instantly. With `source` (a card's
+ * picture) that picture morphs into the details hero.
+ */
+export function useOpenGame(): (game: CardGame, source?: HTMLElement | null) => void {
   const navigate = useNavigate();
+  const m = useMotionPrefs();
+  const morph = !m.off;
   return useCallback(
-    (game: CardGame) => navigate(gamePath(game.placeId), { state: { seed: game } satisfies GameRouteState }),
-    [navigate],
+    (game: CardGame, source?: HTMLElement | null) =>
+      navigateWithMorph(
+        source,
+        () => navigate(gamePath(game.placeId), { state: { seed: game } satisfies GameRouteState }),
+        morph,
+      ),
+    [navigate, morph],
   );
 }
 

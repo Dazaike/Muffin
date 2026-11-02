@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useSyncExternalStore } from "react";
 import { keepPreviousData, useInfiniteQuery, useQuery, type InfiniteData, type UseQueryResult } from "@tanstack/react-query";
 import { ipc, type RbxRequest } from "./ipc";
 import type { Badge, CreatorGroup, GamePass, Paged, PublicServer, SubPlace, UserHit } from "./gameExtras";
@@ -294,6 +295,92 @@ export function useRobloxContinue(): UseQueryResult<ContinueGame[], AppError> {
     retry: false,
     queryFn: () => ipc.robloxContinue(),
   });
+}
+
+type IconWant = { placeId: number; universeId: number | null };
+
+/** Picture URLs by place id, found through the universe id (looked up from the place when it's unknown). */
+async function lookupIcons(missing: IconWant[]): Promise<Record<number, string>> {
+  const universes = new Map<number, number>();
+  await Promise.all(
+    missing.map(async (g) => {
+      try {
+        const universeId =
+          g.universeId || (await ipc.rbxGet<{ universeId: number }>({ kind: "universeForPlace", placeId: g.placeId })).universeId;
+        if (universeId) universes.set(g.placeId, universeId);
+      } catch {
+        /* pictures are decoration */
+      }
+    }),
+  );
+  const byUniverse = await iconMap([...universes.values()]);
+  const out: Record<number, string> = {};
+  for (const [placeId, universeId] of universes) {
+    const url = byUniverse.get(universeId);
+    if (url) out[placeId] = url;
+  }
+  return out;
+}
+
+// Any card, on any page, whose game has no picture asks here. Requests made in the same moment go out as one lookup.
+const cardIcons = new Map<number, string | null>();
+const cardWanted = new Map<number, IconWant>();
+const cardListeners = new Set<() => void>();
+let cardTimer: ReturnType<typeof setTimeout> | undefined;
+
+function flushCardIcons() {
+  cardTimer = undefined;
+  const batch = [...cardWanted.values()];
+  cardWanted.clear();
+  void lookupIcons(batch)
+    .then((found) => {
+      for (const g of batch) cardIcons.set(g.placeId, found[g.placeId] ?? null);
+    })
+    .catch(() => {
+      for (const g of batch) cardIcons.set(g.placeId, null);
+    })
+    .finally(() => cardListeners.forEach((l) => l()));
+}
+
+/** The game, with its picture looked up (and cached for the session) when it was saved without one. */
+export function useCardGame<T extends { placeId: number; universeId?: number | null; iconUrl?: string | null }>(game: T): T {
+  const url = useSyncExternalStore(
+    (l) => {
+      cardListeners.add(l);
+      return () => cardListeners.delete(l);
+    },
+    () => cardIcons.get(game.placeId),
+  );
+  useEffect(() => {
+    if (game.iconUrl || cardIcons.has(game.placeId) || cardWanted.has(game.placeId)) return;
+    cardIcons.set(game.placeId, null);
+    cardWanted.set(game.placeId, { placeId: game.placeId, universeId: game.universeId ?? null });
+    cardTimer ??= setTimeout(flushCardIcons, 60);
+  }, [game.iconUrl, game.placeId, game.universeId]);
+  return game.iconUrl || !url ? game : { ...game, iconUrl: url };
+}
+
+/**
+ * Games saved without a picture (older launches, some Roblox Continue items) get their icon looked up
+ * by universe id, or by place id when that is missing too. Games that already have one pass through.
+ */
+export function useFilledIcons<T extends { placeId: number; universeId?: number | null; iconUrl?: string | null }>(games: T[]): T[] {
+  const missing = useMemo(
+    () => games.filter((g) => !g.iconUrl).map((g) => ({ placeId: g.placeId, universeId: g.universeId ?? null })),
+    [games],
+  );
+  const key = missing.map((g) => g.placeId).sort((a, b) => a - b).join(",");
+  const icons = useQuery<Record<number, string>, AppError>({
+    queryKey: ["game-icons", key],
+    enabled: missing.length > 0,
+    staleTime: 10 * 60_000,
+    retry: false,
+    queryFn: () => lookupIcons(missing),
+  });
+  return useMemo(
+    () => (icons.data ? games.map((g) => (g.iconUrl ? g : { ...g, iconUrl: icons.data[g.placeId] ?? g.iconUrl })) : games),
+    [games, icons.data],
+  );
 }
 
 // ---- game details extras (lazy: each hook takes `enabled` so a tab only loads when opened) -----

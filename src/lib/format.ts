@@ -72,3 +72,11 @@ export function formatDuration(ms: number): string {
   const m = totalMin % 60;
   return m === 0 || h >= 100 ? `${h}h` : `${h}h ${m}m`;
 }
+
+/** 512 → "512 B", 2048 → "2.0 KB", 5 MiB → "5.0 MB", 3 GiB → "3.00 GB". */
+export function formatBytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  if (n < 1024 ** 3) return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(n / 1024 ** 3).toFixed(2)} GB`;
+}

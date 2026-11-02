@@ -3,6 +3,7 @@ import { Copy, Minus, Square, X } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { windowControls } from "@/lib/ipc";
 import { cn } from "@/lib/cn";
+import { platform } from "@/lib/platform";
 
 function WinButton({ label, onClick, danger, children }: { label: string; onClick: () => void; danger?: boolean; children: React.ReactNode }) {
   return (
@@ -40,25 +41,28 @@ export function TitleBar() {
     };
   }, []);
 
+  const mac = platform === "macos";
   return (
     <header data-tauri-drag-region className="relative z-40 flex h-10 shrink-0 items-center justify-between select-none">
-      <div data-tauri-drag-region className="flex items-center gap-2.5 pl-3.5">
+      <div data-tauri-drag-region className={cn("flex items-center gap-2.5", mac ? "pl-20" : "pl-3.5")}>
         <Logo size={20} className="pointer-events-none" />
         <span data-tauri-drag-region className="text-[13px] font-semibold tracking-wide">
           Muffin
         </span>
       </div>
-      <div className="flex h-full">
-        <WinButton label="Minimize" onClick={() => void windowControls.minimize()}>
-          <Minus size={16} strokeWidth={1.75} />
-        </WinButton>
-        <WinButton label={maximized ? "Restore" : "Maximize"} onClick={() => void windowControls.toggleMaximize()}>
-          {maximized ? <Copy size={13} strokeWidth={1.75} /> : <Square size={13} strokeWidth={1.75} />}
-        </WinButton>
-        <WinButton label="Close" danger onClick={() => void windowControls.close()}>
-          <X size={17} strokeWidth={1.75} />
-        </WinButton>
-      </div>
+      {!mac && (
+        <div className="flex h-full">
+          <WinButton label="Minimize" onClick={() => void windowControls.minimize()}>
+            <Minus size={16} strokeWidth={1.75} />
+          </WinButton>
+          <WinButton label={maximized ? "Restore" : "Maximize"} onClick={() => void windowControls.toggleMaximize()}>
+            {maximized ? <Copy size={13} strokeWidth={1.75} /> : <Square size={13} strokeWidth={1.75} />}
+          </WinButton>
+          <WinButton label="Close" danger onClick={() => void windowControls.close()}>
+            <X size={17} strokeWidth={1.75} />
+          </WinButton>
+        </div>
+      )}
     </header>
   );
 }

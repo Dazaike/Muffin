@@ -19,12 +19,11 @@ export const NAV_PAGES: NavItem[] = [
   { to: "/settings", label: "Settings", icon: <SettingsIcon {...ICON} /> },
 ];
 
-/** The app's top navigation: page tabs with library / favorites / online-friends badges. */
+/** The app's top navigation: page tabs with favorites / online-friends badges. */
 export function PrimaryNav() {
-  const libraryCount = useLibrary((s) => s.entries.length);
   const favoriteCount = useLibrary((s) => s.entries.filter((e) => e.favorite).length);
   // The Friends page runs its own presence poll; avoid doubling it there.
   const onFriendsPage = useLocation().pathname.startsWith("/friends");
   const onlineFriends = useOnlineFriendCount(!onFriendsPage);
-  return <NavTabs items={NAV_PAGES} badges={{ "/library": libraryCount, "/favorites": favoriteCount, "/friends": onlineFriends }} />;
+  return <NavTabs items={NAV_PAGES} badges={{ "/favorites": favoriteCount, "/friends": onlineFriends }} />;
 }

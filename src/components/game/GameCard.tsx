@@ -1,4 +1,4 @@
-import { type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { motion } from "motion/react";
 import { ThumbsUp } from "lucide-react";
 import { AnimatedNumber } from "@/components/ui/AnimatedNumber";
@@ -7,6 +7,7 @@ import { SmartImage } from "@/components/ui/SmartImage";
 import { cn } from "@/lib/cn";
 import { percent } from "@/lib/format";
 import { useMotionPrefs } from "@/lib/motion";
+import { useCardGame } from "@/lib/roblox";
 import type { CardGame } from "@/lib/types";
 import { useSettings } from "@/store/settings";
 import { FavoriteButton } from "./FavoriteButton";
@@ -65,7 +66,7 @@ function Players({ n }: { n: number }) {
  * Click/Enter opens details, right-click opens the context menu.
  */
 export function GameCard({
-  game,
+  game: gameProp,
   variant,
   index = 0,
   heroUrl,
@@ -77,28 +78,38 @@ export function GameCard({
   className,
 }: GameCardProps) {
   const m = useMotionPrefs();
+  // Games saved without a picture (older launches) get theirs looked up, wherever the card is shown.
+  const game = useCardGame(gameProp);
   const square = useSettings((s) => s.values.cardShape) === "square";
   const open = useOpenGame();
   const menu = useGameMenu(game);
-  const handleOpen = () => (onOpen ? onOpen() : open(game));
+  // The card's first picture is what morphs into the details hero.
+  const handleOpen = (root?: HTMLElement) =>
+    onOpen ? onOpen() : open(game, root?.querySelector("img")?.parentElement);
   const rating = game.upVotes !== undefined && game.downVotes !== undefined ? percent(game.upVotes, game.downVotes) : null;
   const sub = subtitle ?? game.genre;
+  // The hover Play pill is built on first hover; mounting one per card up front made big pages hitch.
+  const [armed, setArmed] = useState(false);
+  // Only the first few cards animate in; entrance animation on dozens of cards at once is what stalls a page.
+  const still = plain || index >= 8;
 
   const common = {
     role: "link" as const,
     tabIndex: 0,
     "aria-label": game.name,
-    onClick: handleOpen,
+    // Lets the details page's Back button find this card to morph the hero back into it.
+    "data-game-card": game.placeId,
+    onClick: (e: React.MouseEvent) => handleOpen(e.currentTarget as HTMLElement),
     onKeyDown: (e: React.KeyboardEvent) => {
       if (e.target !== e.currentTarget) return;
       if (e.key === "Enter") {
         e.preventDefault();
-        handleOpen();
+        handleOpen(e.currentTarget as HTMLElement);
       }
     },
-    initial: plain ? (false as const) : { opacity: 0, y: 12 },
-    animate: plain ? undefined : { opacity: 1, y: 0 },
-    exit: plain ? undefined : { opacity: 0, scale: 0.9 },
+    initial: still ? (false as const) : { opacity: 0, y: 12 },
+    animate: still ? undefined : { opacity: 1, y: 0 },
+    exit: still ? undefined : { opacity: 0, scale: 0.9 },
   };
 
   let body: ReactNode;
@@ -156,6 +167,10 @@ export function GameCard({
           <div className="absolute top-2 right-2 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
             <FavoriteButton game={game} size={16} />
           </div>
+          {/* No panel behind it: the Play pill just rises into the bottom of the picture on hover. */}
+          <div className="pointer-events-none absolute inset-x-2.5 bottom-2.5 z-10 translate-y-2 opacity-0 transition-[opacity,translate] duration-200 group-focus-within:pointer-events-auto group-focus-within:translate-y-0 group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:translate-y-0 group-hover:opacity-100">
+            {armed && <PlayButton game={game} size="sm" className="w-full" />}
+          </div>
         </div>
         <div className={cn("flex min-w-0 flex-1 flex-col justify-center gap-0.5 px-3 py-2", !wide && "min-h-[62px]")}>
           <div className="truncate text-sm font-medium">{game.name}</div>
@@ -169,14 +184,6 @@ export function GameCard({
             )}
           </div>
         </div>
-        {/* Slides down from the card's bottom edge on hover; takes no layout space while closed. */}
-        <div className="absolute inset-x-0 top-full z-30 -mt-px grid grid-rows-[0fr] rounded-b-card bg-surface transition-[grid-template-rows] duration-200 group-focus-within:grid-rows-[1fr] group-hover:grid-rows-[1fr]">
-          <div className="overflow-hidden">
-            <div className="px-3 pt-1 pb-3">
-              <PlayButton game={game} size="sm" className="w-full" />
-            </div>
-          </div>
-        </div>
       </>
     );
   }
@@ -185,7 +192,9 @@ export function GameCard({
     <ContextMenu entries={menu}>
       <motion.div
         {...common}
-        transition={plain ? { duration: 0 } : { ...m.spring, ...m.stagger(index) }}
+        transition={still ? { duration: 0 } : { ...m.spring, ...m.stagger(index) }}
+        onPointerEnter={() => setArmed(true)}
+        onFocus={() => setArmed(true)}
         whileHover={m.full && !plain && variant !== "hero" ? { y: -10, scale: 1.08 } : undefined}
         className={cn(
           "focus-ring relative cursor-pointer outline-none",

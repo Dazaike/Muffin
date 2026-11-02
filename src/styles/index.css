@@ -162,3 +162,26 @@ html[data-effects="off"] *::after {
 .spin {
   animation: spin 0.8s linear infinite;
 }
+
+/* Game card picture -> details hero (see lib/gameTransition.ts). */
+::view-transition-group(game-hero) {
+  animation-duration: 450ms;
+  animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+  border-radius: 22px;
+  overflow: clip;
+}
+/* Avatar in a list -> avatar on a profile. */
+/* No fixed radius or clip here: the snapshots carry their own shapes, so the avatar changes from the list's shape to the profile's as it travels instead of being forced into a circle. */
+::view-transition-group(user-avatar) {
+  animation-duration: 450ms;
+  animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+::view-transition-old(user-avatar),
+::view-transition-new(user-avatar) {
+  height: 100%;
+  object-fit: cover;
+}
+::view-transition-old(game-hero) {
+  height: 100%;
+  object-fit: cover;
+}

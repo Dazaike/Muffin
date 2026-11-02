@@ -2,7 +2,7 @@
 //!
 //! Honest scope: Muffin only hands the launch to Roblox (`roblox://`), so it cannot know which
 //! game a player process is running. A session is attributed to the *last place launched from
-//! Muffin* when `RobloxPlayerBeta.exe` appears within [`PENDING_WINDOW_MS`] of that launch.
+//! Muffin* when the player process (named per OS) appears within [`PENDING_WINDOW_MS`] of that launch.
 //! Player processes that appear without a recent Muffin launch are ignored, and nothing is recorded
 //! while Muffin is not running. No timer exists until the first launch; the watcher stops itself
 //! when nothing is pending or running.
@@ -19,9 +19,14 @@ use crate::db::{now_ms, Db};
 use crate::error::{AppError, Result};
 use crate::store::to_db_id;
 
-/// Executable names of the Roblox player. Fishstrap/Bloxstrap bootstrap the same
-/// `RobloxPlayerBeta.exe` (verified in `%LOCALAPPDATA%\Fishstrap\Versions\*`).
+/// Process names of the Roblox player, per OS. Fishstrap/Bloxstrap bootstrap the same
+/// `RobloxPlayerBeta.exe` on Windows (verified in `%LOCALAPPDATA%\Fishstrap\Versions\*`).
+#[cfg(windows)]
 const PLAYER_EXES: &[&str] = &["robloxplayerbeta.exe"];
+#[cfg(target_os = "macos")]
+const PLAYER_EXES: &[&str] = &["robloxplayer"];
+#[cfg(target_os = "linux")]
+const PLAYER_EXES: &[&str] = &["sober"];
 
 /// How long after a Muffin launch a player process may appear and still be attributed to it.
 const PENDING_WINDOW_MS: i64 = 90_000;
@@ -29,7 +34,7 @@ const WAIT_POLL: Duration = Duration::from_secs(2);
 const RUN_POLL: Duration = Duration::from_secs(5);
 const DAY_MS: i64 = 86_400_000;
 
-/// Case-insensitive match of a process image name (`szExeFile`, with extension).
+/// Case-insensitive match of a process name (with extension on Windows).
 pub fn is_player_process(exe_name: &str) -> bool {
     PLAYER_EXES.iter().any(|p| exe_name.eq_ignore_ascii_case(p))
 }
@@ -129,38 +134,31 @@ impl Tracker {
 
 // ---- process snapshot ------------------------------------------------------------------------
 
-/// Process ids of every running Roblox player (Toolhelp snapshot; no process handles opened).
+/// Process ids of every running Roblox player.
 fn player_pids() -> std::io::Result<HashSet<u32>> {
-    use windows_sys::Win32::Foundation::{CloseHandle, INVALID_HANDLE_VALUE};
-    use windows_sys::Win32::System::Diagnostics::ToolHelp::{
-        CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W, TH32CS_SNAPPROCESS,
-    };
-    // SAFETY: plain Win32 calls; `entry` is zero-initialised with `dwSize` set as the API requires,
-    // and the snapshot handle is closed on every path after creation.
-    unsafe {
-        let snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-        if snap == INVALID_HANDLE_VALUE {
-            return Err(std::io::Error::last_os_error());
-        }
-        let mut entry: PROCESSENTRY32W = std::mem::zeroed();
-        entry.dwSize = std::mem::size_of::<PROCESSENTRY32W>() as u32;
-        let mut out = HashSet::new();
-        let mut ok = Process32FirstW(snap, &mut entry);
-        while ok != 0 {
-            let len = entry.szExeFile.iter().position(|&c| c == 0).unwrap_or(entry.szExeFile.len());
-            if is_player_process(&String::from_utf16_lossy(&entry.szExeFile[..len])) {
-                out.insert(entry.th32ProcessID);
-            }
-            ok = Process32NextW(snap, &mut entry);
-        }
-        CloseHandle(snap);
-        Ok(out)
-    }
+    process_pids(is_player_process)
+}
+
+/// Process ids of every running process whose name satisfies `matches`.
+pub fn process_pids(matches: impl Fn(&str) -> bool) -> std::io::Result<HashSet<u32>> {
+    let mut sys = sysinfo::System::new();
+    sys.refresh_processes_specifics(sysinfo::ProcessesToUpdate::All, true, sysinfo::ProcessRefreshKind::nothing());
+    Ok(sys
+        .processes()
+        .iter()
+        .filter(|(_, p)| matches(&p.name().to_string_lossy()))
+        .map(|(pid, _)| pid.as_u32())
+        .collect())
 }
 
 /// True while any Roblox player process is running (best effort: a failed snapshot counts as no).
 pub fn player_running() -> bool {
     player_pids().is_ok_and(|p| !p.is_empty())
+}
+
+/// True while a process with this exe name (case-insensitive) is running.
+pub fn process_running(exe_name: &str) -> bool {
+    process_pids(|n| n.eq_ignore_ascii_case(exe_name)).is_ok_and(|p| !p.is_empty())
 }
 
 // ---- storage ---------------------------------------------------------------------------------
@@ -527,6 +525,7 @@ mod tests {
         ids.iter().copied().collect()
     }
 
+    #[cfg(windows)]
     #[test]
     fn process_name_matching() {
         assert!(is_player_process("RobloxPlayerBeta.exe"));
@@ -541,6 +540,25 @@ mod tests {
             "xRobloxPlayerBeta.exe",
             "RobloxPlayerBeta.exe ",
         ] {
+            assert!(!is_player_process(bad), "{bad:?}");
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn process_name_matching_macos() {
+        assert!(is_player_process("RobloxPlayer"));
+        assert!(is_player_process("robloxplayer"));
+        for bad in ["RobloxPlayerInstaller", "Roblox", "RobloxPlayer ", ""] {
+            assert!(!is_player_process(bad), "{bad:?}");
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn process_name_matching_linux() {
+        assert!(is_player_process("sober"));
+        for bad in ["sober_services", "flatpak", ""] {
             assert!(!is_player_process(bad), "{bad:?}");
         }
     }

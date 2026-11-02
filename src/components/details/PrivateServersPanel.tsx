@@ -1,8 +1,9 @@
 import { useState, type FormEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, Copy, Lock, Pencil, Plus, Trash2, X } from "lucide-react";
+import { Check, Lock, Pencil, Plus, Trash2, X } from "lucide-react";
 import { PlayButton } from "@/components/game/PlayButton";
 import { Button } from "@/components/ui/Button";
+import { CopyButton } from "@/components/ui/CopyButton";
 import { ConfirmModal, Modal } from "@/components/ui/Modal";
 import { relativeTime } from "@/lib/format";
 import { ipc, toAppError } from "@/lib/ipc";
@@ -14,6 +15,10 @@ import { OwnedServersSection } from "./OwnedServersSection";
 import { IconBtn, inputClass } from "./serverUi";
 
 const MAX_LABEL = 40;
+
+/** The roblox.com share link a saved server was created from (Muffin stores only its code). */
+const shareLinkOf = (s: PrivateServer) =>
+  `https://www.roblox.com/share?code=${encodeURIComponent(s.code)}&type=${encodeURIComponent(s.kind)}`;
 
 function AddServerForm({
   placeId,
@@ -114,17 +119,6 @@ function ServerRow({
     setDraft(null);
   };
 
-  const copyLink = async () => {
-    try {
-      await navigator.clipboard.writeText(
-        `https://www.roblox.com/share?code=${encodeURIComponent(server.code)}&type=${encodeURIComponent(server.kind)}`,
-      );
-      toast.success("Share link copied");
-    } catch {
-      toast.error("Couldn't copy to the clipboard");
-    }
-  };
-
   return (
     <li className="flex items-center gap-2 rounded-[12px] bg-white/4 p-2 pl-3">
       <Lock size={15} strokeWidth={1.75} className="shrink-0 text-muted" />
@@ -163,10 +157,8 @@ function ServerRow({
         </>
       ) : (
         <>
-          <PlayButton game={game} size="sm" onPlay={() => void launchPrivate(server.id, game)} />
-          <IconBtn label={`Copy share link for ${server.label}`} onClick={() => void copyLink()}>
-            <Copy size={15} strokeWidth={1.75} />
-          </IconBtn>
+          <PlayButton game={game} size="sm" onPlay={() => launchPrivate(server.id, game)} />
+          <CopyButton iconOnly variant="plain" value={shareLinkOf(server)} label={`Copy share link for ${server.label}`} />
           <IconBtn label={`Rename ${server.label}`} onClick={() => setDraft(server.label)}>
             <Pencil size={15} strokeWidth={1.75} />
           </IconBtn>
@@ -209,10 +201,21 @@ export function PrivateServersPanel({ placeId, game }: { placeId: number; game: 
   const remove = async (s: PrivateServer) => {
     try {
       await ipc.removePrivateServer(s.id);
-      patch((prev) => prev.filter((x) => x.id !== s.id));
-      toast.success(`Removed ${s.label}`);
     } catch (e) {
       toast.error(toAppError(e).message);
+      return;
+    }
+    patch((prev) => prev.filter((x) => x.id !== s.id));
+    toast.undoable(`Removed ${s.label}`, () => void readd(s));
+  };
+
+  /** Undo of a removal: saves the same share link again under its old label (it gets a new id and goes last). */
+  const readd = async (s: PrivateServer) => {
+    try {
+      const saved = await ipc.addPrivateServer(placeId, s.label, shareLinkOf(s));
+      patch((prev) => (prev.some((x) => x.id === saved.id) ? prev : [...prev, saved]));
+    } catch (e) {
+      toast.error(`Couldn't restore ${s.label}: ${toAppError(e).message}`);
     }
   };
 

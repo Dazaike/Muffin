@@ -110,6 +110,56 @@ export interface ProtocolStatus {
   handler: HandlerKind;
 }
 
+export type FishstrapSettingValue = boolean | number | string | null | unknown[];
+
+export interface FishstrapSetting {
+  key: string;
+  value: FishstrapSettingValue;
+}
+
+export interface FishstrapLaunchStep {
+  label: string;
+  state: "pending" | "active" | "done";
+}
+
+export interface FishstrapLaunchProgress {
+  phase: "running" | "done" | "failed" | "cancelled";
+  message: string;
+  steps: FishstrapLaunchStep[];
+  packagesDownloaded: number;
+  downloadedBytes: number;
+}
+
+export interface FishstrapStatus {
+  installed: boolean;
+  dir?: string | null;
+  installedVersion?: string | null;
+  channel?: string | null;
+  fishstrapRunning: boolean;
+  playerRunning: boolean;
+}
+
+export interface FastFlag {
+  name: string;
+  value: string;
+}
+
+export interface ModEntry {
+  name: string;
+  isDir: boolean;
+  size: number;
+}
+
+export interface ModsInfo {
+  path: string;
+  entries: ModEntry[];
+}
+
+export interface CleanupResult {
+  removed: number;
+  freedBytes: number;
+}
+
 export interface AccountUser {
   id: number;
   displayName: string;
@@ -124,7 +174,7 @@ export interface AccountStatus {
   user?: AccountUser | null;
 }
 
-/** One saved Roblox account (no secrets; the cookie stays in Credential Manager). */
+/** One saved Roblox account (no secrets; the cookie stays in the OS credential store). */
 export interface AccountSummary {
   userId: number;
   username: string;
@@ -161,6 +211,8 @@ export interface LaunchResult {
 export interface Settings {
   /** Accent colour as an HSL-style hue angle, 0–359. */
   accentHue: number;
+  /** App background colour as `#rrggbb` (independent of the accent). */
+  backgroundColor: string;
   density: "comfortable" | "compact";
   animationIntensity: "full" | "reduced" | "off";
   reduceMotion: boolean;
@@ -169,6 +221,7 @@ export interface Settings {
   autoStart: boolean;
   closeBehavior: "quit" | "tray";
   afterLaunch: "nothing" | "tray" | "quit";
+  fishstrapPrompt: "ask" | "declined";
   showRobux: boolean;
   notifications: boolean;
   continueFromRoblox: boolean;
@@ -177,6 +230,7 @@ export interface Settings {
   notifyFriendsOnline: boolean;
   notifyOnlyWhenHidden: boolean;
   globalShortcut: boolean;
+  hideFishstrap: boolean;
   libraryView: "grid" | "list";
   friendsView: "grid" | "list";
   searchView: "grid" | "list";
@@ -230,6 +284,14 @@ export interface NotifierStatus {
 export interface NotifierNotice {
   kind: "auth_expired";
   message: string;
+}
+
+/** What a bell button watches: a friend (Roblox user id) or a game (universe id). */
+export type WatchKind = "friend" | "game";
+
+export interface WatchList {
+  friends: number[];
+  games: number[];
 }
 
 export type SettingKey = keyof Settings;

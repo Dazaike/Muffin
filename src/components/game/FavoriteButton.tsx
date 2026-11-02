@@ -14,11 +14,13 @@ export interface FavoriteButtonProps {
   size?: number;
   /** Show a text label ("Save"/"Saved") next to the heart. */
   withLabel?: boolean;
+  /** A square glass tile like the other action buttons on the details page. */
+  tile?: boolean;
   className?: string;
 }
 
 /** Heart toggle bound to the library store, with a burst on favorite. */
-export function FavoriteButton({ game, size = 18, withLabel, className }: FavoriteButtonProps) {
+export function FavoriteButton({ game, size = 18, withLabel, tile, className }: FavoriteButtonProps) {
   const m = useMotionPrefs();
   const favorite = useLibrary((s) => s.entries.some((e) => e.placeId === game.placeId && e.favorite));
   const toggle = useLibrary((s) => s.toggleFavorite);
@@ -38,7 +40,11 @@ export function FavoriteButton({ game, size = 18, withLabel, className }: Favori
       onDoubleClick={(e) => e.stopPropagation()}
       className={cn(
         "focus-ring relative inline-flex cursor-pointer items-center justify-center gap-2 transition-colors",
-        withLabel ? "glass h-10 rounded-full px-4 text-sm font-medium" : "size-9 rounded-full bg-black/45 hover:bg-black/65",
+        withLabel
+          ? "glass h-10 rounded-full px-4 text-sm font-medium"
+          : tile
+            ? "glass size-13 rounded-[14px]"
+            : "size-9 rounded-full bg-black/45 hover:bg-black/65",
         favorite ? "text-rose-400" : "text-white/85 hover:text-white",
         className,
       )}

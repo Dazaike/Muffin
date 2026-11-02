@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { BookmarkPlus, Copy, Link2, RefreshCw } from "lucide-react";
+import { BookmarkPlus, Link2, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { CopyButton } from "@/components/ui/CopyButton";
 import { Switch } from "@/components/ui/Controls";
 import { ConfirmModal, Modal } from "@/components/ui/Modal";
 import {
@@ -99,15 +100,6 @@ export function ServerManageModal({
 
   const trimmed = draft.trim();
   const renameOk = !!detail && trimmed.length >= 1 && trimmed.length <= SERVER_NAME_MAX && trimmed !== detail.name;
-
-  const copy = async (text: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      toast.success("Link copied");
-    } catch {
-      toast.error("Couldn't copy to the clipboard");
-    }
-  };
 
   const bookmark = async () => {
     if (!detail?.shareLink || busy) return;
@@ -220,9 +212,7 @@ export function ServerManageModal({
                 <>
                   <div className="flex gap-2">
                     <input readOnly value={detail.shareLink} aria-label="Share link" className={inputClass} onFocus={(e) => e.currentTarget.select()} />
-                    <Button variant="glass" icon={<Copy size={15} strokeWidth={1.75} />} onClick={() => void copy(detail.shareLink as string)}>
-                      Copy
-                    </Button>
+                    <CopyButton value={detail.shareLink} label="Copy" />
                   </div>
                   <div>
                     <Button

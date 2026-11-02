@@ -1,13 +1,19 @@
 import type { ReactNode } from "react";
-import { ThumbsDown, ThumbsUp } from "lucide-react";
+import { CalendarDays, Eye, Gamepad2, Gauge, Heart, RefreshCw, Server, ThumbsDown, ThumbsUp, Users } from "lucide-react";
+import { cn } from "@/lib/cn";
 import { formatCompact, formatDate, percent, relativeTime } from "@/lib/format";
 import { useMaturity } from "@/lib/roblox";
 import type { GameDetails } from "@/lib/types";
 
-function Stat({ label, title, children }: { label: string; title?: string; children: ReactNode }) {
+const ICON = { size: 15, strokeWidth: 1.75 } as const;
+
+function Stat({ label, title, icon, children }: { label: string; title?: string; icon?: ReactNode; children: ReactNode }) {
   return (
-    <div className="surface rounded-card px-4 py-3.5" title={title}>
-      <div className="text-[11px] font-medium tracking-wide text-muted uppercase">{label}</div>
+    <div className="surface min-w-0 rounded-card px-4 py-3.5" title={title}>
+      <div className="flex items-center gap-1.5 text-[11px] font-medium tracking-wide text-muted uppercase">
+        {icon && <span className="text-accent">{icon}</span>}
+        {label}
+      </div>
       <div className="mt-1 text-xl font-semibold">{children}</div>
     </div>
   );
@@ -68,30 +74,30 @@ export function RatingBar({ up, down }: { up: number; down: number }) {
  * Maturity, plus the like/dislike bar. `loading` is true while only the seed (placeholder) data is available:
  * fields the seed can't provide show a skeleton instead of a misleading 0.
  */
-export function StatsRow({ game, loading }: { game: GameDetails; loading: boolean }) {
+export function StatsRow({ game, loading, className }: { game: GameDetails; loading: boolean; className?: string }) {
   const maturity = useMaturity(game, !loading);
   return (
     <div className="flex flex-col gap-3">
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-8">
-        <Stat label="Active" title={game.playerCount !== undefined ? `${full(game.playerCount)} playing now` : undefined}>
+      <div className={cn("grid gap-3", className ?? "grid-cols-2 md:grid-cols-4 xl:grid-cols-8")}>
+        <Stat label="Active" title={game.playerCount !== undefined ? `${full(game.playerCount)} playing now` : undefined} icon={<Users {...ICON} />}>
           {game.playerCount !== undefined ? <Num value={formatCompact(game.playerCount)} /> : loading ? <Pending /> : <Dash />}
         </Stat>
-        <Stat label="Favorites" title={game.favorites !== undefined ? full(game.favorites) : undefined}>
+        <Stat label="Favorites" title={game.favorites !== undefined ? full(game.favorites) : undefined} icon={<Heart {...ICON} />}>
           <Count value={game.favorites} loading={loading} />
         </Stat>
-        <Stat label="Visits" title={loading ? undefined : full(game.visits)}>
+        <Stat label="Visits" title={loading ? undefined : full(game.visits)} icon={<Eye {...ICON} />}>
           {loading ? <Pending /> : <Num value={formatCompact(game.visits)} />}
         </Stat>
-        <Stat label="Server size">
+        <Stat label="Server size" icon={<Server {...ICON} />}>
           {loading ? <Pending /> : game.maxPlayers > 0 ? <Num value={`${game.maxPlayers} players`} /> : <Dash />}
         </Stat>
-        <Stat label="Created">
+        <Stat label="Created" icon={<CalendarDays {...ICON} />}>
           <DateStat iso={game.created} loading={loading} />
         </Stat>
-        <Stat label="Updated" title={game.updated}>
+        <Stat label="Updated" title={game.updated} icon={<RefreshCw {...ICON} />}>
           <DateStat iso={game.updated} loading={loading} relative />
         </Stat>
-        <Stat label="Genre">
+        <Stat label="Genre" icon={<Gamepad2 {...ICON} />}>
           {game.genre ? (
             <span className="block">
               <span className="block truncate text-lg">{game.genre}</span>
@@ -104,7 +110,7 @@ export function StatsRow({ game, loading }: { game: GameDetails; loading: boolea
           )}
         </Stat>
         {maturity && (
-          <Stat label="Maturity">
+          <Stat label="Maturity" icon={<Gauge {...ICON} />}>
             <span className="block truncate text-lg">{maturity.replace(/^Maturity:\s*/i, "")}</span>
           </Stat>
         )}

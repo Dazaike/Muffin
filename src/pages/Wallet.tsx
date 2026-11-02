@@ -15,6 +15,7 @@ import { cn } from "@/lib/cn";
 import { formatRobux, signedRobux, TX_TABS, type PageTotals, type TransactionPage, type TxKind } from "@/lib/economy";
 import { ipc } from "@/lib/ipc";
 import { useMotionPrefs } from "@/lib/motion";
+import { credentialStore } from "@/lib/platform";
 import type { AppError } from "@/lib/types";
 import { useAccount } from "@/store/account";
 import { useSettings } from "@/store/settings";
@@ -210,7 +211,7 @@ export default function Wallet() {
           <EmptyState
             icon={<WalletIcon size={22} strokeWidth={1.75} />}
             title="Sign in to see your Wallet"
-            hint="Robux balance and history need your Roblox session. Sign in inside Muffin; the session stays in Windows Credential Manager."
+            hint={`Robux balance and history need your Roblox session. Sign in inside Muffin; the session stays in ${credentialStore}.`}
             action={
               <Button variant="primary" disabled={signingIn} onClick={() => void signIn()}>
                 {signingIn ? "Roblox sign-in open…" : "Sign in with Roblox"}

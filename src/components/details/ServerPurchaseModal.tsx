@@ -6,7 +6,11 @@ import { Modal } from "@/components/ui/Modal";
 import { formatRobux, SERVER_NAME_MAX, type PurchaseResult, type ServerSettings } from "@/lib/economy";
 import { ipc, toAppError } from "@/lib/ipc";
 import type { AppError } from "@/lib/types";
+import { SlideToConfirm } from "@/components/ui/SlideToConfirm";
 import { InlineError, inputClass, Note } from "./serverUi";
+
+/** How long the slider's "Bought" state stays up before the dialog closes. */
+const DONE_VISIBLE_MS = 900;
 
 function Row({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
   return (
@@ -18,9 +22,9 @@ function Row({ label, value, strong }: { label: string; value: string; strong?: 
 }
 
 /**
- * The ONLY place in the UI that spends Robux. Shows the live price and balance, requires an
- * explicit click on the buy button (no form submit / Enter shortcut), sends the price the user saw
- * (`expectedPrice`; Rust refuses if it changed) and never retries.
+ * The ONLY place in the UI that spends Robux. Shows the live price and balance, requires the user to complete
+ * the slide-to-confirm control (or press Enter on its thumb; a single click never buys, and there is no form
+ * submit), sends the price the user saw (`expectedPrice`; Rust refuses if it changed) and never retries.
  */
 export function ServerPurchaseModal({
   open,
@@ -78,21 +82,27 @@ export function ServerPurchaseModal({
         : insufficient
           ? `Not enough Robux: you have ${formatRobux(have ?? 0)} and this costs ${formatRobux(price)}.`
           : null;
-  const canBuy = !!s && !blockReason && nameValid && !busy && (price === 0 || have !== undefined);
+  // `ready` ignores `busy` so the slider isn't dimmed while it is confirming.
+  const ready = !!s && !blockReason && nameValid && (price === 0 || have !== undefined);
+  const canBuy = ready && !busy;
 
-  const buy = async () => {
-    if (!s || !canBuy) return;
+  // Rejects on failure so SlideToConfirm sends its thumb back; the error is shown inline either way.
+  const buy = async (): Promise<void> => {
+    if (!s || !canBuy) throw new Error("Purchase isn't available");
     setBusy(true);
     setError(null);
     try {
       const result = await ipc.privateServerPurchase(universeId, trimmed, s.price);
-      onPurchased(result);
+      // Leave the slider's "Bought" state visible for a moment before the dialog closes. The modal can't be
+      // dismissed meanwhile (busy stays true).
+      setTimeout(() => onPurchased(result), price > 0 ? DONE_VISIBLE_MS : 0);
     } catch (e) {
       setError(toAppError(e).message);
-      // The price or balance may have changed: show current numbers; the user must click again.
+      // The price or balance may have changed: show current numbers; the user must slide again.
       void settings.refetch();
       void balance.refetch();
       setBusy(false);
+      throw e;
     }
   };
 
@@ -153,14 +163,37 @@ export function ServerPurchaseModal({
 
         {error && <InlineError>{error}</InlineError>}
 
-        <div className="flex justify-end gap-2">
-          <Button variant="ghost" data-autofocus disabled={busy} onClick={onClose}>
-            Cancel
-          </Button>
-          <Button variant="primary" icon={<Coins size={16} strokeWidth={1.75} />} disabled={!canBuy} onClick={() => void buy()}>
-            {busy ? "Purchasing…" : price > 0 ? `Buy for ${formatRobux(price)} Robux` : "Create free server"}
-          </Button>
-        </div>
+        {price > 0 ? (
+          <div className="flex flex-col gap-3">
+            <SlideToConfirm
+              label={`Slide to buy for ${formatRobux(price)} Robux`}
+              confirmingLabel="Buying"
+              doneLabel="Bought"
+              disabled={!ready}
+              resetAfter={null}
+              onConfirm={buy}
+            />
+            <div className="flex justify-end">
+              <Button variant="ghost" data-autofocus disabled={busy} onClick={onClose}>
+                Cancel
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" data-autofocus disabled={busy} onClick={onClose}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              icon={<Coins size={16} strokeWidth={1.75} />}
+              disabled={!canBuy}
+              onClick={() => void buy().catch(() => undefined)}
+            >
+              {busy ? "Creating…" : "Create free server"}
+            </Button>
+          </div>
+        )}
       </div>
     </Modal>
   );

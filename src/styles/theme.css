@@ -4,11 +4,46 @@
 /* Runtime-variable accent: hue is user-adjustable through --accent-h (set on <html>). */
 :root {
   --accent-h: 265;
+  --app-bg: #07070b;
   --accent: oklch(0.66 0.19 var(--accent-h));
   --accent-2: oklch(0.62 0.21 calc(var(--accent-h) + 20));
   --accent-3: oklch(0.75 0.14 calc(var(--accent-h) - 50));
   --accent-soft: oklch(0.66 0.19 var(--accent-h) / 0.18);
   --accent-gradient: var(--accent);
+
+  /* Names the Arc button, copy button and action swap are written against. */
+  --background: var(--color-bg);
+  --foreground: var(--color-fg);
+  --surface: var(--color-surface);
+  --surface-muted: color-mix(in oklab, var(--color-raised), white 6%);
+  --text-secondary: var(--color-muted);
+  --text-muted: color-mix(in oklab, var(--color-muted), transparent 35%);
+  --border: oklch(100% 0 0 / .1);
+  --border-strong: oklch(100% 0 0 / .22);
+  --danger: #f0556a;
+  --success: #3ddc97;
+  --warning: #f5b84a;
+  --accent-foreground: #fff;
+  --accent-strong: color-mix(in oklab, var(--accent), black 14%);
+  --control-height-sm: 32px;
+  --control-height-md: 40px;
+  --control-height-lg: 48px;
+  --radius-control: 12px;
+  --radius-pill: 999px;
+  --text-sm: 13px;
+  --leading-body: 1.4;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --duration-instant: .12s;
+  --duration-fast: .16s;
+  --duration-standard: .24s;
+  --duration-spring: .4s;
+  --ease-standard: cubic-bezier(.22, 1, .36, 1);
+  --ease-spring: cubic-bezier(.22, 1, .36, 1);
 
   --card-min: 176px;
   --card-gap: 16px;
@@ -28,9 +63,9 @@ html[data-density="compact"] {
 }
 
 @theme inline {
-  --color-bg: #07070b;
-  --color-surface: #0e0e16;
-  --color-raised: #151522;
+  --color-bg: var(--app-bg);
+  --color-surface: color-mix(in oklab, var(--app-bg), white 3.5%);
+  --color-raised: color-mix(in oklab, var(--app-bg), white 8%);
   --color-fg: #ececf4;
   --color-muted: #8b8ba3;
   --color-accent: var(--accent);

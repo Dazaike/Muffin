@@ -22,6 +22,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/StateSwitch";
 import { Tabs, type TabItem } from "@/components/ui/Tabs";
 import { useMotionPrefs } from "@/lib/motion";
+import { credentialStore } from "@/lib/platform";
 import type { SocialUser } from "@/lib/socialTypes";
 import { useAccount } from "@/store/account";
 
@@ -35,7 +36,7 @@ function SignedOut({ loaded, expired }: { loaded: boolean; expired: boolean }) {
     <EmptyState
       icon={<UserRound size={22} strokeWidth={1.75} />}
       title={expired ? "Your Roblox session expired" : "Sign in to see your friends"}
-      hint="Friends, requests and presence come from your Roblox account. Muffin signs in through its own Roblox login window and keeps the session in Windows Credential Manager."
+      hint={`Friends, requests and presence come from your Roblox account. Muffin signs in through its own Roblox login window and keeps the session in ${credentialStore}.`}
       action={
         <Button variant="primary" icon={<LogIn size={16} strokeWidth={1.75} />} disabled={signingIn} onClick={() => void signIn()}>
           {signingIn ? "Waiting for sign-in…" : expired ? "Sign in again" : "Sign in to Roblox"}

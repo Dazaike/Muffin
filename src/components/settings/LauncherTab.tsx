@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { Button } from "@/components/ui/Button";
 import { Segmented, Switch } from "@/components/ui/Controls";
+import { shortcutLabel } from "@/lib/platform";
 import { useSettings } from "@/store/settings";
 import { NotificationsTab } from "./NotificationsTab";
 import { SettingRow, SettingsSection } from "./SettingRow";
@@ -10,7 +11,7 @@ export function LauncherTab() {
   const set = useSettings((s) => s.set);
   const syncAutostart = useSettings((s) => s.syncAutostart);
 
-  // The OS (not our DB) is the source of truth for whether Muffin starts with Windows.
+  // The OS (not our DB) is the source of truth for whether Muffin starts at login.
   useEffect(() => {
     void syncAutostart();
   }, [syncAutostart]);
@@ -18,12 +19,12 @@ export function LauncherTab() {
   return (
     <div className="flex flex-col gap-6">
       <SettingsSection title="Startup">
-        <SettingRow title="Start with Windows" description="Launch Muffin when you sign in to Windows.">
-          <Switch label="Start with Windows" checked={v.autoStart} onChange={(x) => void set("autoStart", x)} />
+        <SettingRow title="Start at login" description="Launch Muffin when you sign in.">
+          <Switch label="Start at login" checked={v.autoStart} onChange={(x) => void set("autoStart", x)} />
         </SettingRow>
         <SettingRow
           title="Start minimized"
-          description="When Muffin starts with Windows, stay hidden in the system tray instead of opening a window."
+          description="When Muffin starts at login, stay hidden in the system tray instead of opening a window."
         >
           <Switch label="Start minimized" checked={v.startMinimized} onChange={(x) => void set("startMinimized", x)} />
         </SettingRow>
@@ -54,7 +55,7 @@ export function LauncherTab() {
             ]}
           />
         </SettingRow>
-        <SettingRow title="Global shortcut" description="Ctrl + Alt + M shows or hides Muffin from anywhere.">
+        <SettingRow title="Global shortcut" description={`${shortcutLabel} shows or hides Muffin from anywhere.`}>
           <Switch label="Global shortcut" checked={v.globalShortcut} onChange={(x) => void set("globalShortcut", x)} />
         </SettingRow>
       </SettingsSection>

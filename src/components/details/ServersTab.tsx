@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Gauge, LoaderCircle, LogIn, RefreshCw, Server, Wifi } from "lucide-react";
+import { ActionSwap, type ActionSwapState } from "@/components/ui/ActionSwap";
 import { Button } from "@/components/ui/Button";
 import { EmptyState, StateSwitch } from "@/components/ui/StateSwitch";
 import { SortSelect } from "@/components/lists/SortSelect";
@@ -19,6 +20,13 @@ const SORTS = [
   { value: "ping" as const, label: "Lowest ping" },
   { value: "players" as const, label: "Most players" },
 ];
+
+// `pendingLabel` sits on the state the press moves into; `busy` (this server is the one launching) also selects "opening".
+const JOIN_STATES: ActionSwapState[] = [
+  { id: "join", label: "Join", icon: <LogIn size={16} strokeWidth={1.75} />, tone: "accent" },
+  { id: "opening", label: "Opening", icon: <LoaderCircle size={16} strokeWidth={2} className="animate-spin" />, tone: "accent", pendingLabel: "Opening" },
+];
+const FULL_STATES: ActionSwapState[] = [{ id: "full", label: "Full", icon: <LogIn size={16} strokeWidth={1.75} />, tone: "quiet" }];
 
 function FillBar({ playing, max }: { playing: number; max: number }) {
   const ratio = max > 0 ? Math.min(1, playing / max) : 0;
@@ -42,21 +50,22 @@ function ServerRow({
   server: PublicServer;
   busy: boolean;
   locked: boolean;
-  onJoin: () => void;
+  onJoin: () => PromiseLike<unknown>;
   view: ViewMode;
 }) {
   const full = server.playing >= server.maxPlayers;
   const joinButton = (
-    <Button
+    <ActionSwap
       size="sm"
-      variant="primary"
-      disabled={locked || full}
-      onClick={onJoin}
-      aria-label={full ? "Server is full" : "Join this server"}
-      icon={busy ? <LoaderCircle size={15} strokeWidth={2} className="spin" /> : <LogIn size={15} strokeWidth={1.75} />}
-    >
-      {busy ? "Opening…" : full ? "Full" : "Join"}
-    </Button>
+      states={full ? FULL_STATES : JOIN_STATES}
+      value={full ? "full" : busy ? "opening" : "join"}
+      disabled={full || (locked && !busy)}
+      title={full ? "Server is full" : "Join this server"}
+      onAction={(next) => {
+        if (locked || next.id !== "opening") return;
+        return onJoin();
+      }}
+    />
   );
   const stats = (
     <>
@@ -184,7 +193,7 @@ export function ServersTab({ game }: { game: GameRef }) {
               locked={phase !== "idle"}
               onJoin={() => {
                 setJoining(s.id);
-                void launchInstance(s.id, game);
+                return launchInstance(s.id, game);
               }}
             />
           ))}

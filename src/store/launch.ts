@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { ipc, notify, toAppError, windowControls } from "@/lib/ipc";
+import { ensureLauncher } from "@/lib/ensureLauncher";
 import type { AppError, GameRef } from "@/lib/types";
 import { useUi } from "./ui";
 import { useLibrary } from "./library";
@@ -38,6 +39,11 @@ export const useLaunch = create<LaunchStore>((set, get) => {
     if (get().state.phase !== "idle") return;
     clearTimeout(errorTimer);
     set({ state: { phase: "launching", placeId: game.placeId, game } });
+    // Offer to install Fishstrap first when it's missing (see ensureLauncher).
+    if (!(await ensureLauncher())) {
+      set({ state: IDLE });
+      return;
+    }
     const minDelay = sleep(MIN_LAUNCHING_MS);
     try {
       await Promise.all([start(), minDelay]);

@@ -15,7 +15,7 @@ interface LibraryState {
   /** Adds to favorites (upserting into library if needed) or flips the flag. */
   toggleFavorite: (game: GameRef) => Promise<void>;
   addToLibrary: (game: GameRef) => Promise<void>;
-  /** Removes with a 5 s undo toast that restores flags, position and addedAt. */
+  /** Removes with an undo toast that restores flags, position and addedAt. */
   removeFromLibrary: (placeId: number) => Promise<void>;
   togglePin: (game: GameRef) => Promise<void>;
   /** `placeIds` is the full desired order. */
@@ -24,7 +24,8 @@ interface LibraryState {
   clearHistory: () => Promise<void>;
   recordSearch: (q: string) => Promise<void>;
   removeSearch: (q: string) => Promise<void>;
-  clearSearches: () => Promise<void>;
+  /** `undoable` adds an undo toast; callers with their own confirmation + message leave it off. */
+  clearSearches: (opts?: { undoable?: boolean }) => Promise<void>;
 }
 
 const byPosition = (a: LibraryEntry, b: LibraryEntry) => a.position - b.position || a.addedAt - b.addedAt;
@@ -46,6 +47,8 @@ function fail(prefix: string, e: unknown) {
   toast.error(`${prefix}: ${toAppError(e).message}`);
 }
 
+const MAX_SEARCHES = 20;
+
 function toEntry(game: GameRef, entries: LibraryEntry[], flags: { favorite: boolean; pinned: boolean }): LibraryEntry {
   return {
     placeId: game.placeId,
@@ -63,7 +66,7 @@ function toEntry(game: GameRef, entries: LibraryEntry[], flags: { favorite: bool
 
 export const useLibrary = create<LibraryState>((set, get) => {
   /** Upserts a game as a new library row (optimistic, replaced with Rust's row on success). */
-  const insertNew = async (game: GameRef, flags: { favorite: boolean; pinned: boolean }, errPrefix: string) => {
+  const insertNew = async (game: GameRef, flags: { favorite: boolean; pinned: boolean }, errPrefix: string): Promise<boolean> => {
     const optimistic = toEntry(game, get().entries, flags);
     set((s) => ({ entries: putEntry(s.entries, optimistic) }));
     try {
@@ -78,20 +81,71 @@ export const useLibrary = create<LibraryState>((set, get) => {
         pinned: flags.pinned,
       });
       set((s) => ({ entries: putEntry(s.entries, saved) }));
+      return true;
     } catch (e) {
       set((s) => ({ entries: dropEntry(s.entries, game.placeId) }));
       fail(errPrefix, e);
+      return false;
     }
   };
 
-  const setFlag = async (entry: LibraryEntry, flag: "favorite" | "pinned", value: boolean, errPrefix: string) => {
+  /** Resolves whether the change stuck (false = rolled back and an error toast was shown). */
+  const setFlag = async (entry: LibraryEntry, flag: "favorite" | "pinned", value: boolean, errPrefix: string): Promise<boolean> => {
     const next = { ...entry, [flag]: value };
     set((s) => ({ entries: putEntry(s.entries, next) }));
     try {
       await ipc.librarySetFlags(entry.placeId, { [flag]: value });
+      return true;
     } catch (e) {
       set((s) => ({ entries: rollbackOne(s.entries, entry.placeId, entry) }));
       fail(errPrefix, e);
+      return false;
+    }
+  };
+
+  /** Drops a library row (optimistic, rolled back on failure). Resolves the removed row, or null. */
+  const removeEntry = async (placeId: number, errPrefix: string): Promise<LibraryEntry | null> => {
+    const prev = get().entries.find((x) => x.placeId === placeId);
+    if (!prev) return null;
+    set((s) => ({ entries: dropEntry(s.entries, placeId) }));
+    try {
+      await ipc.libraryRemove(placeId);
+      return prev;
+    } catch (e) {
+      set((s) => ({ entries: rollbackOne(s.entries, placeId, prev) }));
+      fail(errPrefix, e);
+      return null;
+    }
+  };
+
+  /** Undo of a flag flip: sets the flag back without raising another undo toast. */
+  const undoFlag = async (placeId: number, flag: "favorite" | "pinned", value: boolean) => {
+    const cur = get().entries.find((x) => x.placeId === placeId);
+    if (cur) await setFlag(cur, flag, value, "Couldn't undo");
+  };
+
+  /** Undo of a flag that created the library row: the game wasn't saved before, so drop it again. */
+  const undoInsert = async (placeId: number, flag: "favorite" | "pinned") => {
+    const cur = get().entries.find((x) => x.placeId === placeId);
+    if (!cur) return;
+    const other = flag === "favorite" ? cur.pinned : cur.favorite;
+    // Something else was set on it since; only take back this flag.
+    if (other) await setFlag(cur, flag, false, "Couldn't undo");
+    else await removeEntry(placeId, "Couldn't undo");
+  };
+
+  /** Puts the searches list back; `reinsert` (top to bottom) is re-added so Rust's recency order matches. */
+  const restoreSearches = async (next: string[], reinsert: string[]) => {
+    set({ searches: next });
+    try {
+      for (const q of [...reinsert].reverse()) await ipc.searchesAdd(q);
+    } catch (e) {
+      try {
+        set({ searches: await ipc.searchesList() });
+      } catch {
+        /* keep the optimistic list; it's only recent searches */
+      }
+      fail("Couldn't restore searches", e);
     }
   };
 
@@ -136,33 +190,39 @@ export const useLibrary = create<LibraryState>((set, get) => {
 
     toggleFavorite: async (game) => {
       const existing = get().entries.find((x) => x.placeId === game.placeId);
-      if (existing) return setFlag(existing, "favorite", !existing.favorite, "Couldn't update favorite");
-      return insertNew(game, { favorite: true, pinned: false }, "Couldn't add favorite");
+      if (existing) {
+        const favorite = !existing.favorite;
+        if (!(await setFlag(existing, "favorite", favorite, "Couldn't update favorite"))) return;
+        toast.undoable(
+          favorite ? `Added ${existing.name} to favorites` : `Removed ${existing.name} from favorites`,
+          () => void undoFlag(existing.placeId, "favorite", !favorite),
+        );
+        return;
+      }
+      if (!(await insertNew(game, { favorite: true, pinned: false }, "Couldn't add favorite"))) return;
+      toast.undoable(`Added ${game.name} to favorites`, () => void undoInsert(game.placeId, "favorite"));
     },
 
     addToLibrary: async (game) => {
       if (get().entries.some((x) => x.placeId === game.placeId)) return;
-      return insertNew(game, { favorite: false, pinned: false }, "Couldn't add to library");
+      await insertNew(game, { favorite: false, pinned: false }, "Couldn't add to library");
     },
 
     removeFromLibrary: async (placeId) => {
-      const prev = get().entries.find((x) => x.placeId === placeId);
-      if (!prev) return;
-      set((s) => ({ entries: dropEntry(s.entries, placeId) }));
-      try {
-        await ipc.libraryRemove(placeId);
-      } catch (e) {
-        set((s) => ({ entries: rollbackOne(s.entries, placeId, prev) }));
-        fail("Couldn't remove game", e);
-        return;
-      }
-      toast.withAction(`Removed ${prev.name}`, { label: "Undo", onClick: () => void restore(prev) }, 5000);
+      const prev = await removeEntry(placeId, "Couldn't remove game");
+      if (prev) toast.undoable(`Removed ${prev.name}`, () => void restore(prev));
     },
 
     togglePin: async (game) => {
       const existing = get().entries.find((x) => x.placeId === game.placeId);
-      if (existing) return setFlag(existing, "pinned", !existing.pinned, "Couldn't update pin");
-      return insertNew(game, { favorite: false, pinned: true }, "Couldn't pin game");
+      if (existing) {
+        const pinned = !existing.pinned;
+        if (!(await setFlag(existing, "pinned", pinned, "Couldn't update pin"))) return;
+        toast.undoable(pinned ? `Pinned ${existing.name}` : `Unpinned ${existing.name}`, () => void undoFlag(existing.placeId, "pinned", !pinned));
+        return;
+      }
+      if (!(await insertNew(game, { favorite: false, pinned: true }, "Couldn't pin game"))) return;
+      toast.undoable(`Pinned ${game.name}`, () => void undoInsert(game.placeId, "pinned"));
     },
 
     reorder: async (placeIds) => {
@@ -196,7 +256,7 @@ export const useLibrary = create<LibraryState>((set, get) => {
       const query = q.trim();
       if (query.length < 2) return;
       const prev = get().searches;
-      set({ searches: [query, ...prev.filter((x) => x !== query)].slice(0, 20) });
+      set({ searches: [query, ...prev.filter((x) => x !== query)].slice(0, MAX_SEARCHES) });
       try {
         await ipc.searchesAdd(query);
       } catch {
@@ -206,16 +266,26 @@ export const useLibrary = create<LibraryState>((set, get) => {
 
     removeSearch: async (q) => {
       const prev = get().searches;
+      const index = prev.indexOf(q);
       set({ searches: prev.filter((x) => x !== q) });
       try {
         await ipc.searchesRemove(q);
       } catch (e) {
         set({ searches: prev });
         fail("Couldn't remove search", e);
+        return;
       }
+      if (index < 0) return;
+      toast.undoable(`Removed "${q}" from recent searches`, () => {
+        // Searches may have changed since: put `q` back at its old slot in whatever is there now.
+        const cur = get().searches.filter((x) => x !== q);
+        const at = Math.min(index, cur.length);
+        const next = [...cur.slice(0, at), q, ...cur.slice(at)];
+        void restoreSearches(next, next.slice(0, at + 1));
+      });
     },
 
-    clearSearches: async () => {
+    clearSearches: async (opts) => {
       const prev = get().searches;
       set({ searches: [] });
       try {
@@ -223,7 +293,14 @@ export const useLibrary = create<LibraryState>((set, get) => {
       } catch (e) {
         set({ searches: prev });
         fail("Couldn't clear searches", e);
+        return;
       }
+      if (!opts?.undoable || prev.length === 0) return;
+      toast.undoable(`Cleared ${prev.length} recent search${prev.length === 1 ? "" : "es"}`, () => {
+        const cur = get().searches;
+        const next = [...cur, ...prev.filter((x) => !cur.includes(x))].slice(0, MAX_SEARCHES);
+        void restoreSearches(next, next);
+      });
     },
   };
 });

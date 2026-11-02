@@ -1,6 +1,6 @@
 # Muffin
 
-A fast, good-looking Roblox launcher for Windows. Find games, keep your favorites, and hit Play.
+A fast, good-looking Roblox launcher for Windows, macOS and Linux. Find games, keep your favorites, and hit Play. (Fishstrap integration is Windows-only.)
 
 Muffin doesn't replace Roblox. It's a nicer front door: you browse and search in Muffin, and when you press **Play**, Roblox opens the game just like it would from the website.
 
@@ -13,12 +13,15 @@ Muffin doesn't replace Roblox. It's a nicer front door: you browse and search in
 - **See your friends.** Sign in to see who's online, send and answer friend requests, and join them.
 - **Check your Robux.** Your balance shows in the top bar, with your recent transactions in Wallet.
 - **Make it yours.** Pick any accent color, switch card layouts, and set your own background picture.
-- **Stay out of the way.** Minimize to the tray, start with Windows, or let Muffin close itself once Roblox opens.
+- **Stay out of the way.** Minimize to the tray, start at login, or let Muffin close itself once Roblox opens.
 - **Move to a new PC.** Export your library and settings to a file and import them anywhere.
 
 ## Getting started
 
-1. Download **Muffin_0.1.0_x64-setup.exe** from the [Releases](../../releases) page and run it. It installs just for you, so no admin rights are needed.
+1. Download the installer for your system from the [Releases](../../releases) page:
+   - **Windows:** `Muffin_0.1.1_x64-setup.exe`. It installs just for you, so no admin rights are needed.
+   - **macOS:** `Muffin_0.1.1_universal.dmg`. The app is unsigned, so the first time right-click it and choose **Open**, or run `xattr -dr com.apple.quarantine /Applications/Muffin.app`. Install Roblox from roblox.com/download first.
+   - **Linux:** the `.deb` or `.AppImage`. Roblox has no official Linux client, so install [Sober](https://flathub.org/apps/org.vinegarhq.Sober) (Flatpak) first.
 2. Open Muffin. The first-run screen checks that Roblox is installed and offers to sign you in.
 3. Search for a game and press **Play**.
 
@@ -28,7 +31,7 @@ You need Roblox (or Bloxstrap or Fishstrap) installed. If Muffin can't find it, 
 
 No. Browsing, searching, favorites, your library and launching all work without an account.
 
-Signing in adds the account-based parts: your Robux, friends, your own games, and search results that match your account (including age-restricted games). It works like logging in on the Roblox website. Muffin keeps your login safe in Windows Credential Manager and never shows it to you or sends it anywhere except Roblox. You can add more than one account and remove one any time from Settings → Account.
+Signing in adds the account-based parts: your Robux, friends, your own games, and search results that match your account (including age-restricted games). It works like logging in on the Roblox website. Muffin keeps your login safe in your system's credential store and never shows it to you or sends it anywhere except Roblox. You can add more than one account and remove one any time from Settings → Account.
 
 ## Good to know
 
@@ -40,7 +43,7 @@ Signing in adds the account-based parts: your Robux, friends, your own games, an
 
 ## Your data
 
-Everything stays on your PC: your library, history, settings and saved private servers live in `%APPDATA%/app.muffin.launcher`. Your Roblox login is stored in Windows Credential Manager, not in that folder. Exports never include your login.
+Everything stays on your computer: your library, history, settings and saved private servers live in `%APPDATA%/app.muffin.launcher` (Windows), `~/Library/Application Support/app.muffin.launcher` (macOS) or `~/.local/share/app.muffin.launcher` (Linux). Your Roblox login is stored in the system credential store (Windows Credential Manager, macOS Keychain, or the Linux Secret Service), not in that folder. Exports never include your login.
 
 **Settings → Privacy & Data** can clear your cache, play history and recent searches.
 

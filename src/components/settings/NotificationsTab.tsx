@@ -5,6 +5,7 @@ import { relativeTime } from "@/lib/format";
 import { ipc } from "@/lib/ipc";
 import type { AppError, NotifierStatus } from "@/lib/types";
 import { useSettings } from "@/store/settings";
+import { useWatch } from "@/lib/watch";
 import { SettingRow, SettingsSection } from "./SettingRow";
 
 function describe(s: NotifierStatus): { ok: boolean; text: string } {
@@ -12,7 +13,7 @@ function describe(s: NotifierStatus): { ok: boolean; text: string } {
     case "starting":
       return { ok: true, text: "Starting… the first check runs a few seconds after Muffin opens." };
     case "disabled":
-      return { ok: true, text: "All notification types are off, so nothing is being checked." };
+      return { ok: true, text: "All notification types are off and no friends or games are watched, so nothing is being checked." };
     case "no_account":
       return { ok: false, text: "No Roblox account is signed in. Add one in Profile to get notifications." };
     case "stopped":
@@ -30,6 +31,7 @@ const count = (n: number | null) => (n === null ? "—" : String(n));
 export function NotificationsTab() {
   const v = useSettings((s) => s.values);
   const set = useSettings((s) => s.set);
+  const watch = useWatch();
   const status = useQuery<NotifierStatus, AppError>({
     queryKey: ["notifierStatus"],
     queryFn: () => ipc.notifierStatus(),
@@ -70,6 +72,15 @@ export function NotificationsTab() {
           checked={v.notifyOnlyWhenHidden}
           onChange={(x) => void set("notifyOnlyWhenHidden", x)}
         />
+      </SettingRow>
+      <SettingRow
+        title="Bell buttons"
+        description="The bell on a friend or game page. Watched friends notify when they come online even with the switch above off; watched games notify when they are updated. Messages can't be watched per person: Muffin only reads unread counts."
+      >
+        <span className="text-sm text-muted tabular-nums">
+          Watching {watch.friends.size} {watch.friends.size === 1 ? "friend" : "friends"} and {watch.games.size}{" "}
+          {watch.games.size === 1 ? "game" : "games"}
+        </span>
       </SettingRow>
 
       <div className="flex flex-col gap-2 px-5 py-4 text-sm">

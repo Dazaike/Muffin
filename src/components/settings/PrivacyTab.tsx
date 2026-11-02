@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/Button";
 import { AnimatedNumber } from "@/components/ui/AnimatedNumber";
 import { ConfirmModal } from "@/components/ui/Modal";
 import { ipc, toAppError } from "@/lib/ipc";
+import { formatBytes } from "@/lib/format";
+import { credentialStore } from "@/lib/platform";
 import type { AppError, DataSummary } from "@/lib/types";
 import { useLibrary } from "@/store/library";
 import { toast } from "@/store/ui";
@@ -13,12 +15,6 @@ import { DataTransferSection } from "./DataTransfer";
 type ClearKind = "cache" | "history" | "searches" | "playtime";
 
 const SUMMARY_KEY = ["dataSummary"] as const;
-
-function formatBytes(n: number): string {
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
-  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
-}
 
 const CONFIRM: Record<ClearKind, { title: string; message: ReactNode; label: string }> = {
   cache: {
@@ -149,7 +145,7 @@ export function PrivacyTab() {
           <li>
             All of the above live in <code className="rounded bg-white/8 px-1">%APPDATA%/app.muffin.launcher/muffin.db</code>.
           </li>
-          <li>Roblox website session cookies (one per signed-in account) are kept in Windows Credential Manager and never in the database. Removing an account deletes Muffin's saved session without revoking it at Roblox.</li>
+          <li>Roblox website session cookies (one per signed-in account) are kept in {credentialStore} and never in the database. Removing an account deletes Muffin's saved session without revoking it at Roblox.</li>
         </ul>
       </section>
 

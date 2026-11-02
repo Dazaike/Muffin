@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Search } from "lucide-react";
+import { modKeyLabel } from "@/lib/platform";
 import { useUi } from "@/store/ui";
 import { AccountMenu } from "./AccountMenu";
 import { PrimaryNav } from "./PrimaryNav";
@@ -52,7 +53,7 @@ export function TopBar() {
           title="Command palette"
           className="absolute top-1/2 right-2 hidden -translate-y-1/2 cursor-pointer rounded-md bg-white/8 px-1.5 py-0.5 text-[11px] text-muted hover:text-fg min-[1000px]:block"
         >
-          Ctrl K
+          {modKeyLabel} K
         </button>
       </form>
       <RobuxBadge />

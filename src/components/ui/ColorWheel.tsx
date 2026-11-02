@@ -1,4 +1,5 @@
 import { useRef, type KeyboardEvent, type PointerEvent } from "react";
+import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/cn";
 
 const SIZE = 148;
@@ -147,14 +148,9 @@ export function ColorWheel({ value, onChange, onCommit, defaultValue, label, cla
           <span className="size-9 rounded-[10px] shadow-[inset_0_0_0_1px_#ffffff1f]" style={{ background: swatch(value) }} />
           <span className="w-10 text-[13px] text-muted tabular-nums">{value}°</span>
         </div>
-        <button
-          type="button"
-          disabled={value === defaultValue}
-          onClick={reset}
-          className="focus-ring cursor-pointer rounded-[9px] bg-white/6 px-3 py-1.5 text-[13px] font-medium transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
-        >
+        <Button variant="glass" size="sm" disabled={value === defaultValue} onClick={reset}>
           Reset
-        </button>
+        </Button>
       </div>
     </div>
   );

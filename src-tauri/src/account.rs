@@ -1,4 +1,4 @@
-//! Roblox website sessions (multiple accounts). Cookies live only in Windows Credential Manager
+//! Roblox website sessions (multiple accounts). Cookies live only in the OS credential store
 //! (`roblox-web-session:<user_id>`) and never cross the IPC boundary; non-secret rows live in the
 //! SQLite `accounts` table, the active one in settings key `activeAccountId`.
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -217,9 +217,17 @@ pub(crate) fn mark_expired(app: &AppHandle, user_id: u64) {
 
 // ---- keyring ----------------------------------------------------------------------------------
 
+const STORE_NAME: &str = if cfg!(windows) {
+    "Windows Credential Manager"
+} else if cfg!(target_os = "macos") {
+    "macOS Keychain"
+} else {
+    "the system keyring (Secret Service)"
+};
+
 fn entry(name: &str) -> Result<keyring::Entry> {
     keyring::Entry::new(SERVICE, name)
-        .map_err(|_| AppError::storage("Windows Credential Manager is unavailable"))
+        .map_err(|_| AppError::storage(format!("{STORE_NAME} is unavailable")))
 }
 
 fn session_name(user_id: u64) -> String {

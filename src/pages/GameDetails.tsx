@@ -1,17 +1,15 @@
 import { useMemo } from "react";
 import { useLocation, useParams } from "react-router-dom";
 import { ArrowLeft, TriangleAlert } from "lucide-react";
-import { CreatorSection } from "@/components/details/CreatorSection";
-import { DetailsHero } from "@/components/details/DetailsHero";
-import { DetailsTabs } from "@/components/details/DetailsTabs";
-import { RecommendedStrip } from "@/components/details/RecommendedStrip";
-import { RatingBar, StatsRow } from "@/components/details/StatsRow";
+import { GameDetailsView } from "@/components/details/GameDetailsView";
 import { Button } from "@/components/ui/Button";
 import { Page } from "@/components/ui/PageHeader";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { EmptyState, ErrorState } from "@/components/ui/StateSwitch";
 import { useGoBack } from "@/hooks/useGoBack";
 import { toGameRef } from "@/lib/launch";
+import { navigateBackWithMorph } from "@/lib/gameTransition";
+import { useMotionPrefs } from "@/lib/motion";
 import { parsePlaceIdParam, type GameRouteState } from "@/lib/links";
 import { useGameDetails } from "@/lib/roblox";
 import type { GameSummary } from "@/lib/types";
@@ -26,12 +24,15 @@ function BackButton({ onBack }: { onBack: () => void }) {
 
 function DetailsSkeleton() {
   return (
-    <div className="flex flex-col gap-6" aria-hidden>
-      <Skeleton className="h-[340px] rounded-hero md:h-[420px]" />
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
-        {Array.from({ length: 5 }, (_, i) => (
-          <Skeleton key={i} className="h-[76px]" />
+    <div className="grid gap-6 lg:grid-cols-[190px_minmax(0,1fr)]" aria-hidden>
+      <div className="hidden flex-col gap-2 lg:flex">
+        {Array.from({ length: 6 }, (_, i) => (
+          <Skeleton key={i} className="h-10" />
         ))}
+      </div>
+      <div className="grid gap-8 xl:grid-cols-[5fr_7fr]">
+        <Skeleton className="h-[420px]" />
+        <Skeleton className="aspect-video rounded-hero" />
       </div>
     </div>
   );
@@ -41,6 +42,7 @@ export default function GameDetails() {
   const { placeId: param } = useParams();
   const placeId = parsePlaceIdParam(param);
   const goBack = useGoBack();
+  const m = useMotionPrefs();
   const routeState = useLocation().state as GameRouteState | null;
 
   // Instant paint from the card the user clicked; ignored when it belongs to another place.
@@ -104,18 +106,12 @@ export default function GameDetails() {
 
   return (
     <Page className="pt-6">
-      <div className="flex flex-col gap-6">
-        <DetailsHero game={game} gameRef={gameRef} loading={seedOnly} onBack={goBack} />
-        <StatsRow game={game} loading={seedOnly} />
-        <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
-          <DetailsTabs game={game} gameRef={gameRef} loading={seedOnly} />
-          <aside className="flex flex-col gap-4 lg:order-last">
-            {game.upVotes !== undefined && game.downVotes !== undefined && <RatingBar up={game.upVotes} down={game.downVotes} />}
-            <CreatorSection game={game} />
-          </aside>
-        </div>
-        {!seedOnly && <RecommendedStrip universeId={game.universeId > 0 ? game.universeId : null} />}
-      </div>
+      <GameDetailsView
+        game={game}
+        gameRef={gameRef}
+        loading={seedOnly}
+        onBack={() => navigateBackWithMorph(gameRef.placeId, goBack, !m.off)}
+      />
     </Page>
   );
 }

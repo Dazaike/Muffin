@@ -5,8 +5,9 @@ import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { useMotionPrefs } from "@/lib/motion";
+import { robloxInstallHint } from "@/lib/platform";
 import { useRobloxStatus } from "@/lib/roblox";
-import { useAccount } from "@/store/account";
+import { SignInButton } from "@/components/profile/SignInButton";
 import { useSettings } from "@/store/settings";
 
 const HANDLER_LABEL = {
@@ -26,8 +27,6 @@ export function Onboarding() {
   const [step, setStep] = useState(0);
   const [dir, setDir] = useState(1);
   const status = useRobloxStatus();
-  const accountSigningIn = useAccount((s) => s.signingIn);
-  const accountSignIn = useAccount((s) => s.signIn);
 
   const go = (n: number) => {
     setDir(n > step ? 1 : -1);
@@ -71,7 +70,7 @@ export function Onboarding() {
           <>
             <CircleAlert size={20} className="mt-0.5 shrink-0 text-amber-300" strokeWidth={1.75} />
             <span>
-              Roblox isn't installed or its launcher is missing. Install it from roblox.com/download — you can keep exploring in the meantime.
+              Roblox isn't installed or its launcher is missing. {robloxInstallHint} — you can keep exploring in the meantime.
             </span>
           </>
         )}
@@ -98,9 +97,7 @@ export function Onboarding() {
         Games launch as whichever account Roblox Player is signed in to.
       </p>
       <div className="flex flex-col gap-2">
-        <Button variant="primary" disabled={accountSigningIn} onClick={() => void accountSignIn().then((ok) => ok && finish())}>
-          {accountSigningIn ? "Roblox sign-in open…" : "Sign in to Roblox"}
-        </Button>
+        <SignInButton onSignedIn={finish} />
         <Button variant="ghost" onClick={finish}>
           Continue as guest
         </Button>

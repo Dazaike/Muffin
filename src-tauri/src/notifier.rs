@@ -1,5 +1,7 @@
 //! Background notifications for the ACTIVE Roblox account: unread chat messages, pending friend
-//! requests and (optionally) friends coming online.
+//! requests, (optionally) friends coming online, and the per-friend / per-game watches set with the
+//! bell buttons (`watch.rs`): a watched friend coming online notifies even with the global
+//! "friends online" switch off; a watched game notifies when its `updated` timestamp changes.
 //!
 //! A single tokio task, started from `setup`, polls while the process is alive, i.e. also while the
 //! window is hidden in the tray with `closeBehavior = "tray"`. It stops when Muffin quits.
@@ -17,8 +19,10 @@
 //!   swagger (`PendingFriendRequestCountModel`); live authed call UNVERIFIED.
 //! - `friends.roblox.com/v1/users/{id}/friends/online` → `{ data: [{ id, name, displayName }] }` —
 //!   shape verified from Roblox's swagger; live authed call UNVERIFIED.
+//! - `games.roblox.com/v1/games?universeIds=…` → `{ data: [{ id, name, updated }] }` — public (no
+//!   cookie), shape from Roblox's swagger; live call UNVERIFIED here.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
@@ -31,6 +35,7 @@ use tauri_plugin_notification::NotificationExt;
 
 use crate::db::{self, Db};
 use crate::error::{AppError, ErrorCode, Result};
+use crate::watch::{self, WatchList};
 use crate::{rbx_session, tray};
 
 const POLL_INTERVAL: Duration = Duration::from_secs(45);
@@ -45,6 +50,7 @@ const API_HOST: &str = "apis.roblox.com";
 const FRIENDS_HOST: &str = "friends.roblox.com";
 const CHAT_PATH: &str = "/platform-chat-api/v1/get-user-conversations?include_user_data=false&pageSize=30";
 const REQUESTS_PATH: &str = "/v1/user/friend-requests/count";
+const GAMES_HOST: &str = "games.roblox.com";
 
 // ---- pure logic ------------------------------------------------------------------------------
 
@@ -71,8 +77,10 @@ pub struct PresenceTracker {
 
 impl PresenceTracker {
     /// Records the current online set; returns display names of friends that were not online at
-    /// the previous observation.
-    pub fn observe(&mut self, online: &[(u64, String)]) -> Vec<String> {
+    /// the previous observation. The whole set is always tracked, so a friend who is already online
+    /// when they get watched never counts as an arrival. `only` restricts the REPORTED arrivals to
+    /// those user ids (watched friends when the global switch is off); `None` reports everyone.
+    pub fn observe(&mut self, online: &[(u64, String)], only: Option<&HashSet<u64>>) -> Vec<String> {
         let current: HashSet<u64> = online.iter().map(|(id, _)| *id).collect();
         let previous = self.seen.replace(current);
         let Some(previous) = previous else {
@@ -80,8 +88,32 @@ impl PresenceTracker {
         };
         online
             .iter()
-            .filter(|(id, _)| !previous.contains(id))
+            .filter(|(id, _)| !previous.contains(id) && only.is_none_or(|w| w.contains(id)))
             .map(|(_, name)| name.clone())
+            .collect()
+    }
+}
+
+/// Tracks the `updated` timestamp of watched games. The first observation of each game is a silent
+/// baseline; a game that disappears from the response (unwatched, delisted) is forgotten, so
+/// watching it again re-baselines instead of reporting an old update.
+#[derive(Debug, Default)]
+pub struct UpdateTracker {
+    seen: HashMap<u64, String>,
+}
+
+impl UpdateTracker {
+    /// `games` are `(universe id, name, updated)`. Returns the names of games whose `updated`
+    /// value changed since the previous observation.
+    pub fn observe(&mut self, games: &[(u64, String, String)]) -> Vec<String> {
+        let ids: HashSet<u64> = games.iter().map(|(id, _, _)| *id).collect();
+        self.seen.retain(|id, _| ids.contains(id));
+        games
+            .iter()
+            .filter_map(|(id, name, updated)| {
+                let prev = self.seen.insert(*id, updated.clone())?;
+                (prev != *updated).then(|| name.clone())
+            })
             .collect()
     }
 }
@@ -140,6 +172,7 @@ struct Session {
     messages: Chan<CountTracker>,
     requests: Chan<CountTracker>,
     online: Chan<PresenceTracker>,
+    games: Chan<UpdateTracker>,
 }
 
 impl Session {
@@ -157,7 +190,7 @@ impl Session {
     }
 
     fn errors(&self) -> Option<String> {
-        let all: Vec<&str> = [&self.messages.error, &self.requests.error, &self.online.error]
+        let all: Vec<&str> = [&self.messages.error, &self.requests.error, &self.online.error, &self.games.error]
             .into_iter()
             .flatten()
             .map(String::as_str)
@@ -198,6 +231,19 @@ pub fn online_text(names: &[String]) -> (String, String) {
     }
 }
 
+/// `names` must be non-empty.
+pub fn update_text(names: &[String]) -> (String, String) {
+    match names {
+        [] => (String::new(), String::new()),
+        [a] => ("Game updated".into(), format!("{a} was updated.")),
+        [a, b] => ("Games updated".into(), format!("{a} and {b} were updated.")),
+        [a, b, rest @ ..] => (
+            "Games updated".into(),
+            format!("{a}, {b} and {} more were updated.", rest.len()),
+        ),
+    }
+}
+
 fn parse_count(v: &Value) -> Option<u64> {
     v.get("count")?.as_u64()
 }
@@ -224,6 +270,22 @@ fn parse_online(v: &Value) -> Option<Vec<(u64, String)>> {
                     .iter()
                     .find_map(|k| f.get(*k)?.as_str().filter(|s| !s.is_empty()))?;
                 Some((id, name.to_owned()))
+            })
+            .collect(),
+    )
+}
+
+/// `games.roblox.com/v1/games?universeIds=` → `{ data: [{ id, name, updated, … }] }`. Public
+/// endpoint, shape taken from Roblox's swagger. Rows without an id, name or `updated` are skipped.
+fn parse_games(v: &Value) -> Option<Vec<(u64, String, String)>> {
+    let data = v.get("data")?.as_array()?;
+    Some(
+        data.iter()
+            .filter_map(|g| {
+                let id = g.get("id")?.as_u64()?;
+                let name = g.get("name")?.as_str().filter(|s| !s.is_empty())?;
+                let updated = g.get("updated")?.as_str().filter(|s| !s.is_empty())?;
+                Some((id, name.to_owned(), updated.to_owned()))
             })
             .collect(),
     )
@@ -340,6 +402,11 @@ fn read_config(app: &AppHandle) -> Config {
     .unwrap_or(DEFAULT_CONFIG)
 }
 
+/// The watched friends / games; an unreadable table counts as "nothing watched".
+fn read_watches(app: &AppHandle) -> WatchList {
+    app.state::<Db>().with(|c| watch::list_conn(c)).unwrap_or_default()
+}
+
 /// The main window is visible, not minimized and focused, i.e. the user is looking at Muffin.
 fn window_in_front(app: &AppHandle) -> bool {
     app.get_webview_window("main").is_some_and(|w| {
@@ -380,7 +447,13 @@ async fn tick(app: &AppHandle, st: &NotifierState, session: &mut Session, seen_g
     }
 
     let cfg = read_config(app);
-    if !(cfg.messages || cfg.requests || cfg.online) {
+    let watches = read_watches(app);
+    let watched_friends: HashSet<u64> = watches.friends.into_iter().collect();
+    let watched_games = watches.games;
+    // Watched friends are reported even when the global "friends online" switch is off.
+    let poll_online = cfg.online || !watched_friends.is_empty();
+    let only_arrivals = (!cfg.online).then_some(&watched_friends);
+    if !(cfg.messages || cfg.requests || poll_online || !watched_games.is_empty()) {
         *session = Session {
             user_id: session.user_id,
             ..Session::default()
@@ -455,7 +528,7 @@ async fn tick(app: &AppHandle, st: &NotifierState, session: &mut Session, seen_g
         session.requests = Chan::default();
     }
 
-    if cfg.online {
+    if poll_online {
         if !expired && session.online.backoff.ready(now) {
             polled = true;
             let path = format!("/v1/users/{user_id}/friends/online");
@@ -468,7 +541,7 @@ async fn tick(app: &AppHandle, st: &NotifierState, session: &mut Session, seen_g
                     chan.backoff.succeeded();
                     chan.error = None;
                     chan.latest = Some(list.len() as u64);
-                    let names = chan.tracker.observe(&list);
+                    let names = chan.tracker.observe(&list, only_arrivals);
                     if !names.is_empty() {
                         pending.push(online_text(&names));
                     }
@@ -478,6 +551,31 @@ async fn tick(app: &AppHandle, st: &NotifierState, session: &mut Session, seen_g
         }
     } else {
         session.online = Chan::default();
+    }
+
+    if !watched_games.is_empty() {
+        if !expired && session.games.backoff.ready(now) {
+            polled = true;
+            let ids = watched_games.iter().map(u64::to_string).collect::<Vec<_>>().join(",");
+            let result = rbx_session::public_json(app, GAMES_HOST, &format!("/v1/games?universeIds={ids}"))
+                .await
+                .and_then(|v| parse_games(&v).ok_or_else(|| parse_error("game")));
+            let chan = &mut session.games;
+            match result {
+                Ok(list) => {
+                    chan.backoff.succeeded();
+                    chan.error = None;
+                    chan.latest = Some(list.len() as u64);
+                    let names = chan.tracker.observe(&list);
+                    if !names.is_empty() {
+                        pending.push(update_text(&names));
+                    }
+                }
+                Err(e) => expired = record_failure(chan, "Game updates", &e, now),
+            }
+        }
+    } else {
+        session.games = Chan::default();
     }
 
     if polled {
@@ -587,12 +685,78 @@ mod tests {
         let a = (1, "Ann".to_owned());
         let b = (2, "Bob".to_owned());
         let c = (3, "Cy".to_owned());
-        assert!(p.observe(&[a.clone(), b.clone()]).is_empty());
-        assert!(p.observe(&[a.clone(), b.clone()]).is_empty());
-        assert_eq!(p.observe(&[a.clone(), b.clone(), c.clone()]), vec!["Cy"]);
+        assert!(p.observe(&[a.clone(), b.clone()], None).is_empty());
+        assert!(p.observe(&[a.clone(), b.clone()], None).is_empty());
+        assert_eq!(p.observe(&[a.clone(), b.clone(), c.clone()], None), vec!["Cy"]);
         // Bob leaves and returns: he counts as newly online again.
-        assert!(p.observe(&[a.clone(), c.clone()]).is_empty());
-        assert_eq!(p.observe(&[a, b, c]), vec!["Bob"]);
+        assert!(p.observe(&[a.clone(), c.clone()], None).is_empty());
+        assert_eq!(p.observe(&[a, b, c], None), vec!["Bob"]);
+    }
+
+    #[test]
+    fn watched_filter_reports_only_watched_arrivals() {
+        let mut p = PresenceTracker::default();
+        let a = (1, "Ann".to_owned());
+        let b = (2, "Bob".to_owned());
+        let c = (3, "Cy".to_owned());
+        let watched: HashSet<u64> = [2].into_iter().collect();
+        assert!(p.observe(&[a.clone()], Some(&watched)).is_empty(), "baseline");
+        // Ann and Bob both arrive; only the watched one is reported.
+        assert_eq!(p.observe(&[a.clone(), b.clone(), c.clone()], Some(&watched)), vec!["Bob"]);
+        // Bob was already online: watching him later does not re-report him.
+        let both: HashSet<u64> = [2, 3].into_iter().collect();
+        assert!(p.observe(&[a, b, c], Some(&both)).is_empty());
+        // Nothing watched reports nothing, but the set is still tracked.
+        let none = HashSet::new();
+        assert!(p.observe(&[(9, "Zed".to_owned())], Some(&none)).is_empty());
+    }
+
+    #[test]
+    fn update_tracker_baselines_then_reports_changed_timestamps() {
+        let g = |id: u64, name: &str, updated: &str| (id, name.to_owned(), updated.to_owned());
+        let mut t = UpdateTracker::default();
+        assert!(t.observe(&[g(1, "Obby", "2026-01-01"), g(2, "Tycoon", "2026-02-01")]).is_empty());
+        assert!(t.observe(&[g(1, "Obby", "2026-01-01"), g(2, "Tycoon", "2026-02-01")]).is_empty());
+        assert_eq!(
+            t.observe(&[g(1, "Obby", "2026-03-01"), g(2, "Tycoon", "2026-02-01")]),
+            vec!["Obby"]
+        );
+        assert!(t.observe(&[g(1, "Obby", "2026-03-01"), g(2, "Tycoon", "2026-02-01")]).is_empty());
+    }
+
+    #[test]
+    fn update_tracker_new_and_dropped_games_rebaseline_silently() {
+        let g = |id: u64, updated: &str| (id, format!("G{id}"), updated.to_owned());
+        let mut t = UpdateTracker::default();
+        t.observe(&[g(1, "a")]);
+        // Game 2 is newly watched: baseline only, even though game 1 changed.
+        assert_eq!(t.observe(&[g(1, "b"), g(2, "x")]), vec!["G1"]);
+        // Game 1 is unwatched, then watched again with a different timestamp: no stale report.
+        assert!(t.observe(&[g(2, "x")]).is_empty());
+        assert!(t.observe(&[g(1, "c"), g(2, "x")]).is_empty());
+    }
+
+    #[test]
+    fn parses_games_skipping_incomplete_rows() {
+        let v = json!({"data": [
+            {"id": 1, "name": "Obby", "updated": "2026-01-01T00:00:00Z", "playing": 4},
+            {"id": 2, "name": "", "updated": "2026-01-01T00:00:00Z"},
+            {"id": 3, "name": "No date"},
+            {"name": "no id", "updated": "x"}
+        ]});
+        assert_eq!(
+            parse_games(&v),
+            Some(vec![(1, "Obby".into(), "2026-01-01T00:00:00Z".into())])
+        );
+        assert_eq!(parse_games(&json!({"errors": []})), None);
+    }
+
+    #[test]
+    fn update_text_has_game_names_only() {
+        let n = |s: &[&str]| s.iter().map(|x| x.to_string()).collect::<Vec<_>>();
+        assert_eq!(update_text(&n(&["A"])), ("Game updated".into(), "A was updated.".into()));
+        assert_eq!(update_text(&n(&["A", "B"])).1, "A and B were updated.");
+        assert_eq!(update_text(&n(&["A", "B", "C", "D"])).1, "A, B and 2 more were updated.");
     }
 
     #[test]
