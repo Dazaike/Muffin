@@ -5,7 +5,7 @@ import { AnimatedNumber } from "@/components/ui/AnimatedNumber";
 import { ConfirmModal } from "@/components/ui/Modal";
 import { ipc, toAppError } from "@/lib/ipc";
 import { formatBytes } from "@/lib/format";
-import { credentialStore } from "@/lib/platform";
+import { credentialStore, dataDir } from "@/lib/platform";
 import type { AppError, DataSummary } from "@/lib/types";
 import { useLibrary } from "@/store/library";
 import { toast } from "@/store/ui";
@@ -143,7 +143,7 @@ export function PrivacyTab() {
           <li>Your library and favorites, play history, playtime sessions, saved private-server codes, recent searches and settings.</li>
           <li>Cached Roblox API responses.</li>
           <li>
-            All of the above live in <code className="rounded bg-white/8 px-1">%APPDATA%/app.muffin.launcher/muffin.db</code>.
+            All of the above live in <code className="rounded bg-white/8 px-1">{dataDir}/muffin.db</code>.
           </li>
           <li>Roblox website session cookies (one per signed-in account) are kept in {credentialStore} and never in the database. Removing an account deletes Muffin's saved session without revoking it at Roblox.</li>
         </ul>

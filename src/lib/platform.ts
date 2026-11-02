@@ -8,6 +8,8 @@ export const platform: Platform = detectPlatform(typeof navigator === "undefined
 
 export const credentialStore =
   platform === "windows" ? "Windows Credential Manager" : platform === "macos" ? "macOS Keychain" : "your system keyring";
+export const dataDir =
+  platform === "windows" ? "%APPDATA%/app.muffin.launcher" : platform === "macos" ? "~/Library/Application Support/app.muffin.launcher" : "~/.local/share/app.muffin.launcher";
 export const modKeyLabel = platform === "macos" ? "⌘" : "Ctrl";
 export const shortcutLabel = platform === "macos" ? "⌃ ⌥ M" : "Ctrl + Alt + M";
 
