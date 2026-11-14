@@ -3,7 +3,7 @@ import { ColorPicker, type ColorSwatch } from "@/components/ui/color-picker/Colo
 import { Segmented } from "@/components/ui/Controls";
 import { RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import { accentHex, hueOf, stripAlpha } from "@/lib/colour";
+import { accentHex, oklchOf, stripAlpha } from "@/lib/colour";
 import { DEFAULT_SETTINGS, useSettings } from "@/store/settings";
 import { SettingRow, SettingsSection } from "./SettingRow";
 import { BackgroundSection } from "./BackgroundSection";
@@ -13,7 +13,7 @@ const SAVE_AFTER_MS = 500;
 
 /** Bumped by a reset so a colour still waiting to be saved isn't written over the defaults. */
 let resetEpoch = 0;
-const RESET_KEYS = ["accentHue", "backgroundColor", "backgroundDim", "backgroundBlur"] as const;
+const RESET_KEYS = ["accentHue", "accentLightness", "accentChroma", "backgroundColor", "backgroundDim", "backgroundBlur"] as const;
 
 /**
  * Dragging previews live without touching the database; the value is saved once picking pauses. The
@@ -37,16 +37,29 @@ function useLivePick<T>(read: () => T, apply: (v: T) => void, save: (v: T) => vo
   };
 }
 
-/** The accent is a hue: whatever colour is picked, its hue is kept and the shade stays the app's. */
+interface Accent {
+  h: number;
+  l: number;
+  c: number;
+}
+
+/** The accent is an OKLCH colour: the picked colour's hue, lightness and chroma are all kept. */
 function AccentPicker() {
-  const hue = useSettings((s) => s.values.accentHue);
+  const accent = useSettings((s) => s.values);
   const bg = useSettings((s) => s.values.backgroundColor);
   const set = useSettings((s) => s.set);
-  const [picked, setPicked] = useState(() => accentHex(hue));
-  const pick = useLivePick<number>(
-    () => useSettings.getState().values.accentHue,
-    (h) => useSettings.setState((s) => ({ values: { ...s.values, accentHue: h } })),
-    (h) => void set("accentHue", h),
+  const [picked, setPicked] = useState(() => accentHex(accent.accentHue, accent.accentLightness / 100, accent.accentChroma / 100));
+  const pick = useLivePick<Accent>(
+    () => {
+      const s = useSettings.getState().values;
+      return { h: s.accentHue, l: s.accentLightness, c: s.accentChroma };
+    },
+    (a) => useSettings.setState((s) => ({ values: { ...s.values, accentHue: a.h, accentLightness: a.l, accentChroma: a.c } })),
+    (a) => {
+      void set("accentHue", a.h);
+      void set("accentLightness", a.l);
+      void set("accentChroma", a.c);
+    },
   );
   return (
     <ColorPicker
@@ -56,8 +69,10 @@ function AccentPicker() {
       background={bg}
       onValueChange={(hex) => {
         setPicked(hex);
-        const h = hueOf(stripAlpha(hex));
-        if (h !== null) pick(h);
+        const o = oklchOf(stripAlpha(hex));
+        if (!o) return;
+        // Greys have no hue; keep the current one so the accent doesn't jump.
+        pick({ h: o.h ?? useSettings.getState().values.accentHue, l: Math.min(100, Math.max(0, o.l)), c: Math.min(40, Math.max(0, o.c)) });
       }}
     />
   );
@@ -96,6 +111,8 @@ export function AppearanceTab() {
   const [pickerKey, setPickerKey] = useState(0);
   const isDefault =
     v.accentHue === DEFAULT_SETTINGS.accentHue &&
+    v.accentLightness === DEFAULT_SETTINGS.accentLightness &&
+    v.accentChroma === DEFAULT_SETTINGS.accentChroma &&
     v.backgroundColor.toLowerCase() === DEFAULT_SETTINGS.backgroundColor &&
     v.backgroundDim === DEFAULT_SETTINGS.backgroundDim &&
     v.backgroundBlur === DEFAULT_SETTINGS.backgroundBlur;

@@ -2,6 +2,21 @@
 
 All notable changes to Muffin are documented here. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [v0.1.3] - 2026-11-14
+
+There are no commits since v0.1.2; these changes were made in the working tree and are committed together in the release commit, so entries come from the diff.
+
+### Added
+- Accent colour now keeps the picked colour's lightness and chroma as well as its hue (new `accentLightness` and `accentChroma` settings). Reset colours restores them.
+- Text on accent-coloured surfaces (primary buttons, Play, active tabs and segments, nav, bell, vote buttons) switches to black when the accent is light.
+- Game details sections open from a popout menu next to Back, and the page content uses the full width.
+
+### Changed
+- Launch status island has a fixed width and only animates position, scale, opacity and blur, so it no longer stretches when the step changes.
+
+### Fixed
+- Spinners on Launching and loading buttons were rendered as squares by the global squircle corner rule; they are round again.
+
 ## [v0.1.2] - 2026-11-02
 
 ### Added

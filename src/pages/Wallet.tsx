@@ -30,7 +30,7 @@ function BalanceCard({ signedIn, name }: { signedIn: boolean; name?: string }) {
       transition={m.fast}
       className="surface flex flex-wrap items-center gap-4 rounded-panel p-5"
     >
-      <div className="accent-gradient flex size-12 shrink-0 items-center justify-center rounded-full text-white">
+      <div className="accent-gradient flex size-12 shrink-0 items-center justify-center rounded-full text-on-accent">
         <Coins size={22} strokeWidth={1.75} />
       </div>
       <div className="min-w-0 flex-1">

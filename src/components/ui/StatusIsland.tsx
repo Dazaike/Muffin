@@ -321,12 +321,12 @@ export function StatusIsland({ tasks, onDismiss, dismissAfter = 4000, className 
         <AnimatePresence>
           {current ? (
             <motion.div
-              animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+              animate={{ opacity: 1, y: 0, scale: 1, filter: "blur(0px)" }}
               className="relative"
-              exit={{ opacity: 0, y: 8, filter: "blur(4px)" }}
-              initial={{ opacity: 0, y: 8, filter: "blur(4px)" }}
+              exit={{ opacity: 0, y: 8, scale: 0.96, filter: "blur(4px)" }}
+              initial={{ opacity: 0, y: 12, scale: 0.94, filter: "blur(4px)" }}
               key="island"
-              transition={SWAP}
+              transition={MORPH}
             >
               {/* Tasks waiting behind the current one peek out above it. */}
               {Array.from({ length: behind }, (_, i) => (
@@ -346,7 +346,6 @@ export function StatusIsland({ tasks, onDismiss, dismissAfter = 4000, className 
               ))}
               <motion.div
                 className="relative overflow-hidden bg-zinc-900 text-white shadow-black/30 shadow-lg ring-1 ring-white/10"
-                layout
                 onBlur={handleBlur}
                 onFocus={handleFocus}
                 onKeyDown={handleKeyDown}
@@ -354,16 +353,14 @@ export function StatusIsland({ tasks, onDismiss, dismissAfter = 4000, className 
                 onPointerLeave={handlePointerLeave}
                 ref={islandRef}
                 style={{ borderRadius: 20 }}
-                transition={MORPH}
               >
                 {expanded ? (
                   <motion.ul
-                    animate={{ opacity: 1, filter: "blur(0px)" }}
+                    animate={{ opacity: 1, y: 0, scale: 1, filter: "blur(0px)" }}
                     aria-label="Tasks"
-                    className="flex w-80 max-w-[calc(100vw-2rem)] flex-col gap-3.5 px-4 py-3.5 outline-none"
-                    initial={{ opacity: 0, filter: "blur(4px)" }}
+                    className="flex w-80 max-w-[calc(100vw-2rem)] origin-bottom flex-col gap-3.5 px-4 py-3.5 outline-none"
+                    initial={{ opacity: 0, y: 6, scale: 0.97, filter: "blur(4px)" }}
                     key="list"
-                    layout="position"
                     ref={listRef}
                     tabIndex={-1}
                     transition={{ ...SWAP, delay: 0.05 }}
@@ -378,7 +375,7 @@ export function StatusIsland({ tasks, onDismiss, dismissAfter = 4000, className 
                   <div
                     aria-expanded={false}
                     aria-label={`${describe(current)}. ${tasks.length} ${tasks.length === 1 ? "task" : "tasks"}, show all`}
-                    className="flex h-10 max-w-[calc(100vw-2rem)] cursor-pointer items-center px-4 text-left focus-visible:outline-none"
+                    className="flex h-10 w-80 max-w-[calc(100vw-2rem)] cursor-pointer items-center px-4 text-left focus-visible:outline-none"
                     onClick={() => setOpen(true)}
                     onKeyDown={(event) => {
                       if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) {
@@ -390,25 +387,19 @@ export function StatusIsland({ tasks, onDismiss, dismissAfter = 4000, className 
                     role="button"
                     tabIndex={0}
                   >
-                    <AnimatePresence initial={false} mode="popLayout">
-                      <motion.div
-                        animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-                        className="min-w-0"
-                        exit={{ opacity: 0, y: -6, filter: "blur(4px)" }}
-                        initial={{ opacity: 0, y: 6, filter: "blur(4px)" }}
-                        key={`${current.id}-${current.status}`}
-                        layout="position"
-                        transition={SWAP}
-                      >
-                        <div className="flex min-w-48 items-center gap-2.5">
-                          <TaskIcon task={current} />
-                          <TaskText task={current} />
-                          <span className="pl-3">
-                            <TaskTrailing task={current} />
-                          </span>
-                        </div>
-                      </motion.div>
-                    </AnimatePresence>
+                    <motion.div
+                      animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+                      className="flex w-full items-center gap-2.5"
+                      initial={{ opacity: 0, y: 8, filter: "blur(4px)" }}
+                      key={`${current.id}-${current.status}`}
+                      transition={SWAP}
+                    >
+                      <TaskIcon task={current} />
+                      <TaskText task={current} />
+                      <span className="pl-3">
+                        <TaskTrailing task={current} />
+                      </span>
+                    </motion.div>
                   </div>
                 )}
               </motion.div>

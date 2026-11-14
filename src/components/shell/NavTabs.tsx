@@ -259,7 +259,7 @@ export function NavTabs({ items, badges, label = "Primary" }: { items: NavItem[]
                 className={cn(
                   "focus-ring relative z-10 flex h-9 items-center gap-2 rounded-[10px] text-sm font-medium whitespace-nowrap transition-colors",
                   labels ? "px-3" : "px-2.5",
-                  on ? "text-white" : "text-muted hover:text-fg",
+                  on ? "text-on-accent" : "text-muted hover:text-fg",
                 )}
               >
                 <span className="relative flex size-[18px] shrink-0 items-center justify-center">

@@ -436,6 +436,8 @@ enum Kind {
 /// The `settings_set` allowlist (`activeAccountId` is intentionally absent: Rust writes it).
 const SETTINGS: &[(&str, Kind)] = &[
     ("accentHue", Kind::Int(0, 359)),
+    ("accentLightness", Kind::Int(0, 100)),
+    ("accentChroma", Kind::Int(0, 40)),
     // app background colour (not the accent)
     ("backgroundColor", Kind::Hex),
     ("density", Kind::OneOf(&["comfortable", "compact"])),

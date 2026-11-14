@@ -29,7 +29,7 @@
 .iconPhase[data-tone="warning"] { color: var(--warning); }
 .iconPhase[data-tone="danger"] { color: var(--danger); }
 /* A quiet ring: a faint full track with one bright arc turning around it. */
-.spinner { display: block; width: 14px; height: 14px; border: 1.5px solid color-mix(in oklab, currentColor 24%, transparent); border-top-color: currentColor; border-radius: 50%; animation: swap-spin .75s linear infinite; }
+.spinner { display: block; width: 14px; height: 14px; border: 1.5px solid color-mix(in oklab, currentColor 24%, transparent); border-top-color: currentColor; border-radius: 50%; corner-shape: round; animation: swap-spin .75s linear infinite; }
 @keyframes swap-spin { to { transform: rotate(360deg); } }
 .morph { display: inline-flex; min-width: 0; }
 .glyphs { position: relative; display: inline-flex; flex: none; white-space: pre; }

@@ -250,7 +250,7 @@ export function BellButton({
         variant === "default" && "gap-2.5 px-4",
         variant === "compact" && "gap-1.5 px-3",
         subscribed
-          ? "border-transparent bg-accent text-white hover:brightness-110"
+          ? "border-transparent bg-accent text-on-accent hover:brightness-110"
           : "border-white/8 bg-white/6 text-fg hover:bg-white/10",
         className,
       )}

@@ -19,19 +19,29 @@ export function stripAlpha(hex: string): string {
   return /^#[0-9a-f]{6}/i.test(hex) ? hex.slice(0, 7).toLowerCase() : hex;
 }
 
-/** OKLCH hue (0-359) of a colour, or `null` for greys, where hue means nothing. */
-export function hueOf(hex: string): number | null {
+/** OKLCH of a colour as whole numbers: lightness and chroma in hundredths, hue 0-359. Hue is `null` for greys. */
+export function oklchOf(hex: string): { l: number; c: number; h: number | null } | null {
   const rgb = rgbOf(hex);
   if (!rgb) return null;
   const [r, g, b] = rgb.map(lin) as [number, number, number];
   const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
   const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
   const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+  const lightness = 0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s;
   const a = 1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s;
   const bb = 0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s;
-  if (Math.hypot(a, bb) < 0.02) return null;
+  const chroma = Math.hypot(a, bb);
   const h = (Math.atan2(bb, a) * 180) / Math.PI;
-  return Math.round((h + 360) % 360) % 360;
+  return {
+    l: Math.round(lightness * 100),
+    c: Math.round(chroma * 100),
+    h: chroma < 0.02 ? null : Math.round((h + 360) % 360) % 360,
+  };
+}
+
+/** OKLCH hue (0-359) of a colour, or `null` for greys, where hue means nothing. */
+export function hueOf(hex: string): number | null {
+  return oklchOf(hex)?.h ?? null;
 }
 
 /** Linear sRGB of an OKLCH colour (unclamped). */
@@ -49,13 +59,13 @@ function oklchToLinear(l0: number, c: number, hue: number): [number, number, num
   ];
 }
 
-/** The accent colour for a hue as `#rrggbb`: chroma is reduced until it fits sRGB, so the hue holds. */
-export function accentHex(hue: number): string {
-  let c = ACCENT_C;
-  let rgb = oklchToLinear(ACCENT_L, c, hue);
+/** The accent colour as `#rrggbb`: chroma is reduced until it fits sRGB, so the hue holds. */
+export function accentHex(hue: number, lightness = ACCENT_L, chroma = ACCENT_C): string {
+  let c = chroma;
+  let rgb = oklchToLinear(lightness, c, hue);
   while (c > 0 && rgb.some((v) => v < -0.0005 || v > 1.0005)) {
     c -= 0.005;
-    rgb = oklchToLinear(ACCENT_L, Math.max(0, c), hue);
+    rgb = oklchToLinear(lightness, Math.max(0, c), hue);
   }
   const bytes = rgb.map((v) => Math.round(clamp01(gam(clamp01(v))) * 255));
   return `#${bytes.map((v) => v.toString(16).padStart(2, "0")).join("")}`;

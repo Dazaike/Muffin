@@ -5,6 +5,8 @@ import { toast } from "./ui";
 
 export const DEFAULT_SETTINGS: Settings = {
   accentHue: 265,
+  accentLightness: 66,
+  accentChroma: 19,
   backgroundColor: "#07070b",
   density: "comfortable",
   animationIntensity: "full",
@@ -80,6 +82,8 @@ export const BACKGROUND_DIM_RANGE = { min: 0, max: 90 } as const;
 export const BACKGROUND_BLUR_RANGE = { min: 0, max: 24 } as const;
 const INT_RANGES: Partial<Record<SettingKey, { min: number; max: number }>> = {
   accentHue: ACCENT_HUE_RANGE,
+  accentLightness: { min: 0, max: 100 },
+  accentChroma: { min: 0, max: 40 },
   backgroundDim: BACKGROUND_DIM_RANGE,
   backgroundBlur: BACKGROUND_BLUR_RANGE,
 };
@@ -145,5 +149,7 @@ export function applySettingsToDom(v: Settings, root: HTMLElement = document.doc
   root.dataset.effects = v.animationIntensity === "off" ? "off" : "on";
   root.dataset.bgImage = String(v.backgroundImage);
   root.style.setProperty("--accent-h", String(v.accentHue));
+  root.style.setProperty("--accent-l", String(v.accentLightness));
+  root.style.setProperty("--accent-c", String(v.accentChroma));
   root.style.setProperty("--app-bg", v.backgroundColor);
 }

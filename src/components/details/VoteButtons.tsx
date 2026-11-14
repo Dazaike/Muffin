@@ -90,7 +90,7 @@ export function VoteButtons({ game }: { game: GameDetails }) {
         onClick={() => click(up)}
         className={cn(
           "focus-ring inline-flex h-9 cursor-pointer items-center gap-2 rounded-full px-3.5 text-sm font-medium tabular-nums transition-colors disabled:cursor-not-allowed disabled:opacity-50",
-          active ? "accent-gradient text-white" : "bg-white/10 text-white hover:bg-white/18",
+          active ? "accent-gradient text-on-accent" : "bg-white/10 text-white hover:bg-white/18",
         )}
       >
         <Icon size={15} strokeWidth={active ? 2.25 : 1.75} fill={active ? "currentColor" : "none"} />

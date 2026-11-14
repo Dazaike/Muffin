@@ -70,7 +70,7 @@ export function Segmented<T extends string>({
             onClick={() => onChange(o.value)}
             className={cn(
               "focus-ring relative cursor-pointer rounded-[9px] px-3 py-1.5 text-[13px] font-medium transition-colors",
-              active ? "text-white" : "text-muted hover:text-fg",
+              active ? "text-on-accent" : "text-muted hover:text-fg",
             )}
           >
             {active && (

@@ -53,7 +53,7 @@ export function PlayButton({ game, size = "md", className, onPlay, label = "Play
         whileHover={m.full ? { scale: 1.03 } : undefined}
         whileTap={{ scale: 0.96 }}
         className={cn(
-          "focus-ring relative inline-flex shrink-0 cursor-pointer items-center justify-center overflow-hidden bg-accent font-semibold whitespace-nowrap text-white transition-[filter] select-none hover:brightness-110",
+          "focus-ring relative inline-flex shrink-0 cursor-pointer items-center justify-center overflow-hidden bg-accent font-semibold whitespace-nowrap text-on-accent transition-[filter] select-none hover:brightness-110",
           ICON_SIZE,
           className,
         )}

@@ -4,11 +4,15 @@
 /* Runtime-variable accent: hue is user-adjustable through --accent-h (set on <html>). */
 :root {
   --accent-h: 265;
+  --accent-l: 66;
+  --accent-c: 19;
   --app-bg: #07070b;
-  --accent: oklch(0.66 0.19 var(--accent-h));
-  --accent-2: oklch(0.62 0.21 calc(var(--accent-h) + 20));
-  --accent-3: oklch(0.75 0.14 calc(var(--accent-h) - 50));
-  --accent-soft: oklch(0.66 0.19 var(--accent-h) / 0.18);
+  --accent: oklch(calc(var(--accent-l) / 100) calc(var(--accent-c) / 100) var(--accent-h));
+  --accent-2: oklch(calc((var(--accent-l) - 4) / 100) calc((var(--accent-c) + 2) / 100) calc(var(--accent-h) + 20));
+  --accent-3: oklch(calc((var(--accent-l) + 9) / 100) calc((var(--accent-c) - 5) / 100) calc(var(--accent-h) - 50));
+  --accent-soft: oklch(calc(var(--accent-l) / 100) calc(var(--accent-c) / 100) var(--accent-h) / 0.18);
+  /* Black on light accents, white on dark ones; flips at lightness 72. */
+  --on-accent: oklch(clamp(0, calc((72 - var(--accent-l)) * 100), 1) 0 0);
   --accent-gradient: var(--accent);
 
   /* Names the Arc button, copy button and action swap are written against. */
@@ -23,7 +27,7 @@
   --danger: #f0556a;
   --success: #3ddc97;
   --warning: #f5b84a;
-  --accent-foreground: #fff;
+  --accent-foreground: var(--on-accent);
   --accent-strong: color-mix(in oklab, var(--accent), black 14%);
   --control-height-sm: 32px;
   --control-height-md: 40px;
@@ -72,6 +76,7 @@ html[data-density="compact"] {
   --color-accent-2: var(--accent-2);
   --color-accent-3: var(--accent-3);
   --color-accent-soft: var(--accent-soft);
+  --color-on-accent: var(--on-accent);
   --color-hairline: var(--hairline);
   --color-danger: #f0556a;
   --color-success: #3ddc97;

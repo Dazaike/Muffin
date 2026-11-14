@@ -30,7 +30,7 @@ export function ViewToggle({ value, onChange, animated = true }: { value: ViewMo
             onClick={() => onChange(v)}
             className={cn(
               "focus-ring relative flex h-8 w-9 cursor-pointer items-center justify-center rounded-[9px] transition-colors",
-              active ? "text-white" : "text-muted hover:text-fg",
+              active ? "text-on-accent" : "text-muted hover:text-fg",
             )}
           >
             {active && <motion.span layoutId={animated ? `view-${group}` : undefined} transition={m.spring} className="accent-gradient absolute inset-0 rounded-[9px]" />}

@@ -1,6 +1,6 @@
-import { useId, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { ArrowLeft, Award, Gamepad2, Image as ImageIcon, Map as MapIcon, Server, Ticket, Users } from "lucide-react";
+import { ArrowLeft, Award, ChevronDown, Gamepad2, Image as ImageIcon, Map as MapIcon, Server, Ticket, Users } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/cn";
 import { useMotionPrefs } from "@/lib/motion";
@@ -44,7 +44,6 @@ interface Props {
 /** The details page body: a section list on the left (Play, Details, Servers, …) and the open section on the right. */
 export function GameDetailsView({ game, gameRef, loading, onBack }: Props) {
   const m = useMotionPrefs();
-  const group = useId();
   const [section, setSection] = useState<SectionId>("play");
   // Sections slide in from the side the nav item is on.
   const dir = useRef(1);
@@ -52,7 +51,21 @@ export function GameDetailsView({ game, gameRef, loading, onBack }: Props) {
     dir.current = SECTIONS.findIndex((s) => s.id === id) > SECTIONS.findIndex((s) => s.id === section) ? 1 : -1;
     setSection(id);
   };
-
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!menuOpen) return;
+    const close = (e: PointerEvent) => {
+      if (!menuRef.current?.contains(e.target as Node)) setMenuOpen(false);
+    };
+    const esc = (e: KeyboardEvent) => e.key === "Escape" && setMenuOpen(false);
+    document.addEventListener("pointerdown", close);
+    document.addEventListener("keydown", esc);
+    return () => {
+      document.removeEventListener("pointerdown", close);
+      document.removeEventListener("keydown", esc);
+    };
+  }, [menuOpen]);
   // The seed (clicked card) has no universe id until the real details arrive.
   const universeId = game.universeId > 0 ? game.universeId : null;
   const pictures = [...new Set([game.heroUrl ?? game.iconUrl, ...game.screenshots].filter((u): u is string => !!u))];
@@ -77,42 +90,63 @@ export function GameDetailsView({ game, gameRef, loading, onBack }: Props) {
     media: pictures.length > 0 ? <Screenshots urls={pictures} name={game.name} /> : <p className="text-sm text-muted">No pictures for this experience.</p>,
   };
 
+  const current = SECTIONS.find((s) => s.id === section) ?? SECTIONS[0]!;
+
   return (
-    <div className="grid items-start gap-6 lg:grid-cols-[190px_minmax(0,1fr)]">
-      <nav
-        aria-label="Game sections"
-        className="no-scrollbar flex gap-1 overflow-x-auto lg:sticky lg:top-4 lg:flex-col lg:overflow-visible"
-      >
-        <Button
-          variant="glass"
-          icon={<ArrowLeft size={16} strokeWidth={1.75} />}
-          onClick={onBack}
-          className="mb-1 shrink-0 max-lg:mr-1 lg:mb-3"
-        >
+    <div className="flex flex-col gap-6">
+      <div className="relative z-30 flex items-center gap-2" ref={menuRef}>
+        <Button variant="glass" icon={<ArrowLeft size={16} strokeWidth={1.75} />} onClick={onBack} className="shrink-0">
           Back
         </Button>
-        {SECTIONS.map((s) => {
-          const active = s.id === section;
-          return (
-            <button
-              key={s.id}
-              type="button"
-              aria-current={active ? "page" : undefined}
-              onClick={() => select(s.id)}
-              className={cn(
-                "focus-ring relative flex shrink-0 cursor-pointer items-center gap-3 rounded-[12px] px-3.5 py-2.5 text-left text-sm font-medium transition-colors",
-                active ? "text-fg" : "text-muted hover:bg-white/5 hover:text-fg",
-              )}
+        <button
+          type="button"
+          aria-expanded={menuOpen}
+          aria-haspopup="menu"
+          onClick={() => setMenuOpen((o) => !o)}
+          className="focus-ring glass flex h-10 cursor-pointer items-center gap-2.5 rounded-[12px] px-3.5 text-sm font-medium text-fg"
+        >
+          <span className="text-accent">{current.icon}</span>
+          <span>{current.label}</span>
+          <ChevronDown size={15} strokeWidth={1.75} className={cn("text-muted transition-transform duration-200", menuOpen && "rotate-180")} />
+        </button>
+        <AnimatePresence>
+          {menuOpen && (
+            <motion.nav
+              aria-label="Game sections"
+              role="menu"
+              initial={{ opacity: 0, y: -6, scale: 0.97 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -6, scale: 0.97 }}
+              transition={m.fast}
+              style={{ transformOrigin: "top left" }}
+              className="absolute top-full left-0 mt-2 flex w-56 flex-col gap-1 rounded-[16px] bg-raised p-1.5 shadow-black/40 shadow-xl ring-1 ring-white/10"
             >
-              {active && (
-                <motion.span layoutId={`details-nav-${group}`} transition={m.spring} className="absolute inset-0 rounded-[12px] bg-accent/20 ring-1 ring-accent/30" />
-              )}
-              <span className={cn("relative", active && "text-accent")}>{s.icon}</span>
-              <span className="relative">{s.label}</span>
-            </button>
-          );
-        })}
-      </nav>
+              {SECTIONS.map((s) => {
+                const active = s.id === section;
+                return (
+                  <button
+                    key={s.id}
+                    type="button"
+                    role="menuitem"
+                    aria-current={active ? "page" : undefined}
+                    onClick={() => {
+                      select(s.id);
+                      setMenuOpen(false);
+                    }}
+                    className={cn(
+                      "focus-ring flex cursor-pointer items-center gap-3 rounded-[12px] px-3 py-2.5 text-left text-sm font-medium transition-colors",
+                      active ? "bg-accent/20 text-fg ring-1 ring-accent/30" : "text-muted hover:bg-white/5 hover:text-fg",
+                    )}
+                  >
+                    <span className={cn(active && "text-accent")}>{s.icon}</span>
+                    {s.label}
+                  </button>
+                );
+              })}
+            </motion.nav>
+          )}
+        </AnimatePresence>
+      </div>
 
       <div className="relative min-w-0">
         {/* popLayout takes the leaving panel out of flow, so the page height doesn't collapse mid-switch. */}

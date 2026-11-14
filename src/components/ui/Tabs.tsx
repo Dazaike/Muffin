@@ -39,7 +39,7 @@ export function Tabs<T extends string = string>({ tabs, value, onChange, variant
             className={cn(
               "focus-ring relative inline-flex cursor-pointer items-center gap-2 px-3.5 py-2 text-sm font-medium transition-colors",
               variant === "pills" ? "rounded-full" : "rounded-t-lg",
-              active ? "text-white" : "text-muted hover:text-fg",
+              active ? (variant === "pills" ? "text-on-accent" : "text-white") : "text-muted hover:text-fg",
             )}
           >
             {active && variant === "pills" && (

@@ -211,6 +211,10 @@ export interface LaunchResult {
 export interface Settings {
   /** Accent colour as an HSL-style hue angle, 0–359. */
   accentHue: number;
+  /** Accent lightness, OKLCH L in hundredths, 0–100. */
+  accentLightness: number;
+  /** Accent chroma, OKLCH C in hundredths, 0–40. */
+  accentChroma: number;
   /** App background colour as `#rrggbb` (independent of the accent). */
   backgroundColor: string;
   density: "comfortable" | "compact";
